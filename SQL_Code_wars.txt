@@ -1,0 +1,138 @@
+We have a table named books with the following schema:
+
+id (integer) - The unique identifier for each book entry.
+title (varchar) - The title of the book.
+author (varchar) - The author of the book.
+genres (varchar[]) - An array of genres associated with the book.
+Write a SQL query to achieve the following:
+
+Return a list of genres.
+Count the number of books in each genre.
+List titles of the books in each genre as an array. The titles within this array should be sorted alphabetically.
+The output should be ordered by the number of books in each genre in descending order, and then alphabetically by genre name for genres with the same book count.
+
+
+with list as (
+select unnest(genres) as genre, title from books)
+
+select genre, count(genre) as count, array_agg(title order by title) as books
+from list
+group by genre
+order by 2 desc, 1
+
+##################################################################
+
+You are given a table called customer_purchases that contains information about customer purchases. You are required to write an SQL query to find the number of new unique customers (as num_new_customers column) on each date. A new customer is defined as one making their first purchase.
+
+Table schema:
+
+customer_id (integer) - The unique identifier for each customer
+date (date) - The date of the purchase
+product (varchar) - The product purchased by the customer
+Here's an example of what the data table might look like:
+
+customer_id |    date    | product
+------------+------------+----------
+      1     | 31-08-2023 | Orange
+      1     | 31-08-2023 | Orange
+      3     | 31-08-2023 | Apple
+      1     | 24-09-2023 | Apple
+      4     | 25-09-2023 | Orange
+
+
+with customers as (
+select customer_id, min(date) as date
+from customer_purchases
+group by customer_id)
+
+select date, count(customer_id) as num_new_customers
+from customers
+group by date
+order by date
+
+
+############################################################################
+
+You are a database administrator at a wholesale company that deals with multiple suppliers. The company keeps track of all its transactions in two PostgreSQL tables: transaction and transaction_content.
+
+The transaction table contains information about each transaction, identified by a unique transaction_id and the date the transaction took place:
+
+| transaction_id | date       |
++----------------+------------+
+|      1         | 2023-07-17 |
+|      2         | 2023-07-17 |
+The transaction_content table contains detailed information about the items in each transaction, including the product_code, supplier, and quantity of each item:
+
+| transaction_id | product_code | supplier  | quantity |
++----------------+--------------+-----------+----------+
+|      1         |    8008554   | SupplierA |    3     |
+|      1         |    8008579   | SupplierA |    4     |
+|      1         |    9870560   | SupplierA |    5     |
+|      2         |    8008554   | SupplierA |    7     |
+|      2         |    8081784   | SupplierB |    1     |
+|      2         |    8217471   | SupplierA |   23     |
+As the company deals with multiple suppliers, a single transaction can include items from more than one supplier.
+
+Write a SQL query to generate a report that shows the transaction_id, date, and supplier for each transaction. If a transaction includes items from multiple suppliers, the supplier column should display 'Several'. If all items in a transaction are from the same supplier, display the name of that supplier. The result should be ordered by transaction_id in ascending order.
+
+So thus for above sample data, the solution would be:
+
+| transaction_id | date       | supplier  |
++----------------+------------+-----------+
+|      1         | 2023-07-17 | SupplierA |
+|      2         | 2023-07-17 | Several   |
+
+
+with counter as (
+select transaction_id, count(distinct(supplier)) as ctr
+from transaction_content
+group by transaction_id)
+
+select distinct(tc.transaction_id), tr.date,
+case 
+  when ct.ctr = 1 then tc.supplier
+  else 'Several'
+end as supplier
+from transaction_content as tc
+join counter as ct
+on tc.transaction_id = ct.transaction_id
+join transaction as tr
+on tc.transaction_id = tr.transaction_id
+order by tc.transaction_id
+
+#################################################################################
+
+Write a query to produce a result set that lists an array of student names (ordered by their student_id in ascending order) for each subject where these students achieved the highest mark for that subject. Your result should also include the subject name and the highest mark achieved.
+
+Table Schema:
+
+students:
+
+student_id (integer) - Unique identifier for each student.
+student_name (varchar) - Name of the student.
+details (varchar) - Additional details related to the student (for this challenge, it may have a static value like 'X').
+subjects:
+
+subject_id  (varchar) - Unique identifier for each subject (e.g., 'M' for Math).
+subject_name (varchar) - Name of the subject (e.g., 'Math', 'English').
+marks:
+
+student_id (integer) - Identifier linking to the students table.
+subject_id (varchar) - Identifier linking to the subjects table.
+mark_rate (integer) - The mark or score the student has received for the subject.
+
+with top_marks as (
+select subject_id, max(mark_rate) as top
+from marks
+group by subject_id)
+
+select array_agg(st.student_name order by st.student_id) as student_names, sbj.subject_name, tm.top as mark_rate
+from marks as ms
+join top_marks as tm
+on ms.subject_id = tm.subject_id
+join students as st
+on ms.student_id = st.student_id
+join subjects as sbj
+on ms.subject_id = sbj.subject_id
+where ms.mark_rate = tm.top
+group by sbj.subject_name, tm.top
