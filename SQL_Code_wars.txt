@@ -1,3 +1,18 @@
+You are working with a database that contains information about various products supplied by different suppliers. The database has a table named products, which has the following schema:
+
+id: (integer) - Primary key
+supplier_id: (integer) – The unique identifier for each supplier.
+product_name: (varchar) – The name of the product.
+quantity: (integer) – The quantity of the product in stock.
+Write a SQL query to find the total count of rows for each supplier, representing the total number of products (regardless of product name) for each supplier. Your query must not use the GROUP BY clause.
+
+select distinct(supplier_id) as supplier_id,
+count(*) over (partition by supplier_id) as total_products
+from products
+order by supplier_id desc
+
+##############################################################
+
 We have a table named books with the following schema:
 
 id (integer) - The unique identifier for each book entry.
