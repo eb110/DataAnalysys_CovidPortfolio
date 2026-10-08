@@ -1,3 +1,91 @@
+
+You are given a table named data with a single column num of type integer. The numbers in this column are supposed to be sequential (in ascending order), but some numbers are missing.
+
+Your task is to write a SQL query to find the first missing number in the sequence.
+
+Here's an example of what the data table might look like:
+
+ num
+-----
+  1
+  2
+  4
+  5
+  6
+  8
+  9
+ 11
+For the given example data, your query should return the following result:
+
+ missing_number
+
+with list as (
+select *, (row_number() over (order by num)) - num as counter
+from data)
+
+
+select num + counter as missing_number from list
+where counter + 1 <> (select min(num) from data)
+limit 1
+
+##################################################
+
+We have employees table with the the following columns:
+
+employee_id: A unique integer identifier for each employee.
+full_name: A string representing the employee's full name.
+team: A string that specifies which team the employee is part of. The team can be one of the following four: "backend", "frontend", "devops", or "design".
+birth_date: A date that represents the employee's birthdate.
+Your task is to write an SQL query that retrieves the complete record for 3-rd oldest developer in the backend team. Let's assume for this task that there are no employees who share the same birthdate - tests are written to ensure that.
+
+LIMIT/FETCH as well as usage of window functions is forbidden.
+
+select * from employees
+where birth_date = (
+select min(birth_date)
+from employees
+where team = 'backend' and birth_date > (
+select min(birth_date)
+from employees
+where team = 'backend' and birth_date > (
+select min(birth_date)
+from employees
+where team = 'backend'
+)))
+
+##################################################
+
+
+In the online streaming platform users watch various videos and create playlists of their favorite content. The platform wants to identify engaged users who have explored and watched more than two different videos. This information will help platform to provide personalized recommendations and enhance the user experience.
+
+You are working with PostgreSQL DB and being provided with a table named user_playlist containing the historical playlist data for users. The table has the following structure:
+
+user_id: An integer representing the unique identifier of the user.
+video_id: An integer representing the unique identifier of the video.
+time: A timestamp representing the date and time when the user watched the video.
+The table might have multiple entries for the same user watching the same video.
+
+You got the following specification from the management:
+
+Your query should return only the users who have watched more than two different videos.
+The result should list the user_id and the video_id they have watched.
+Duplicate combinations of user and video should be avoided in the result.
+The result should be ordered by user_id in ascending order and by video_id also in ascending order
+
+NO DISTINCT !!!
+
+with unique_list as (
+select user_id, video_id, count(*) over (partition by user_id) as counter
+from user_playlist
+group by user_id, video_id)
+
+select user_id, video_id
+from unique_list
+where counter > 2
+order by 1, 2
+
+###########################################################
+
 You are working with a database that contains information about various products supplied by different suppliers. The database has a table named products, which has the following schema:
 
 id: (integer) - Primary key
