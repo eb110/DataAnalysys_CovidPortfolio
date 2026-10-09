@@ -1,3 +1,96 @@
+In an e-commerce company, an inventory of products is maintained. Each product has a certain quantity in stock. For reporting purposes, we need to display the data of the inventory where each product appears as many times as its quantity in stock.
+
+We have a table called products. The products table has the following columns: product_id (an integer representing the unique ID of the product), product_name (a text string representing the name of the product), and quantity_in_stock (an integer representing the quantity of the product in stock).
+
+You need to write a SQL query that generates a representation where each product appears as many times as its quantity in stock.
+
+Here is a simple example of what the products table might look like:
+
+ product_id | product_name | quantity_in_stock 
+------------+--------------+-------------------
+          1 | product1     |                 4
+          2 | product2     |                 7
+The output of your query should look something like this:
+
+product_id  | product_name | quantity_in_stock 
+------------+--------------+-------------------
+         2  | product2     |                 7
+         2  | product2     |                 7
+         2  | product2     |                 7
+         2  | product2     |                 7
+         2  | product2     |                 7
+         2  | product2     |                 7
+         2  | product2     |                 7
+         1  | product1     |                 4
+         1  | product1     |                 4
+         1  | product1     |                 4
+         1  | product1     |                 4          
+The output should be sorted by product_id in descending order.
+
+select product_id, product_name, 
+greatest(generate_series(1,quantity_in_stock), quantity_in_stock) as quantity_in_stock
+from products
+order by product_id desc
+
+########################################################
+
+
+Welcome to our digital restaurant! Your role is to be a chef but for data, not food. Our special menu item today is 10 rows of data, served fresh from the PostgreSQL oven. As a data chef, you have a table named sample_table with two columns, a and b. Column a contains unique positive (>=1) integer values, and column b contains single characters. The table can contain random amount of rows.
+
+The recipe is tricky though: No matter the number of rows in the original table, your SQL query should always return exactly 10 rows! If there aren't enough rows in the table, you'll need to add some yourself, but with a twist. These extra rows should have 0 in column a and '-' in column b.
+
+Requirements:
+
+Your SQL query should always return exactly 10 rows, regardless of the number of rows available in the table.
+If there are less than 10 rows in the table, the result should be filled with extra rows. These extra rows should have 0 in column A and '-' in column B.
+If there are more than 10 rows in the table, your query should only return the first 10 rows.
+The returned rows should be ordered by priority: rows from the original table first, followed by the extra rows, if any.
+The rows from the original table should be sorted in ascending order according to column a
+
+drop table if exists tt;
+create temporary table tt(
+id int,
+c int,
+d varchar(10)
+);
+
+insert into tt values (1, 0, '-'),(2, 0, '-'),(3, 0, '-'),(4, 0, '-'),(5, 0, '-'),(6, 0, '-'),
+(7, 0, '-'),(8, 0, '-'),(9, 0, '-'),(10, 0, '-');
+
+with dupa as(
+select a, b
+from sample_table
+order by 1)
+
+select a,b from dupa
+union all 
+select c,d from tt
+limit(10)
+
+##################################################
+
+You have the state_streams table, where each raw contains the abbreviation of the state and the total hours of streaming from the video hosting:
+
+state (String)	total_streams (Integer)
+NC	34569
+SC	33999
+CA	98324
+MA	19345
+..	..
+Write an SQL query that selects pairs of states from the state_streams table where the total number of streams is less than a thousand of each other.
+
+Your query should return a result set with three columns: state_a, state_b and difference.
+Each row in the result set should represent a pair of states whose total_streams difference is less than 1000 along with displaying this difference.
+The same pair of states should not appear more than once in the result set. For example, if you have a pair (NC, SC), you should not have another pair (SC, NC) in the results.
+The states in both columns of your result set should be ordered in ascending alphabetical order. First by state_a and afterwards by state_b
+
+select s1.state as state_a, s2.state as state_b, abs(s1.total_streams - s2.total_streams) as difference
+from state_streams as s1
+cross join state_streams as s2
+where s1.state < s2.state and abs(s1.total_streams - s2.total_streams) < 1000
+order by 1,2
+
+#########################################################
 
 You are given a table named data with a single column num of type integer. The numbers in this column are supposed to be sequential (in ascending order), but some numbers are missing.
 
