@@ -1,3 +1,102 @@
+Your task is to write a parameterized PostgreSQL query to fetch the accessible sections based on a given user ID. The query should only return sections to which the user has access. The result set should contain the columns id and section_name and should be ordered by id in ascending order.
+
+section_access schema:
+
+id (integer) - A unique identifier for each row.
+section_name (varchar) - The name of the section.
+user_access (varchar) - A comma-separated string of user IDs who have access to this section.
+Write a prepared SQL statement named find_sections that takes a user ID as a parameter (of integer type). Use $1 as a placeholder for the user ID parameter.
+
+For this sample data:
+
+| id | section_name | user_access |
++----+--------------+-------------+
+|  1 | editNews     | 1,13,15     |
+|  2 | deleteNews   | 2,13,14     |
+|  3 | createNews   | 1,2,3       |
+The expected result for EXECUTE find_sections(1) would be:
+
+| id | section_name |
++----+--------------+
+|  1 | editNews     |
+|  3 | createNews   |
+
+
+prepare find_sections(int) as
+select s_a.id, s_a.section_name
+from section_access as s_a
+join (select id, unnest(string_to_array(user_access, ',')) as kk from section_access) as u_a
+on s_a.id = u_a.id
+where cast(u_a.kk as int) = $1
+order by id
+
+####################################################
+
+The business tracks its product sales and product returns in two separate tables: table_sales and table_returns. Both tables have the same structure:
+
+id (integer): primary key
+product_id (string): ID of the product.
+quantity (integer): Number of products sold/returned.
+date (date): Date of the sale/return.
+Fetch the consolidated data such that the output columns are:
+
+product_id: ID of the product.
+sale_qty: Quantity sold on the date. If no sales are available for that date, show NULL.
+return_qty: Quantity returned on the date. If no returns are available for that date, show NULL.
+date: Date of the transaction.
+Notes:
+
+Only one transaction for a product_id per date is possible.
+The results should be sorted by product_id and then by date both in ascending order.
+
+select
+coalesce(tr.product_id, ts.product_id) as product_id
+,ts.quantity as sale_qty, tr.quantity as return_qty,
+coalesce(tr.date, ts.date) as date
+from table_sales as ts
+full join table_returns as tr using (product_id, date)
+order by 1, 4
+
+##################################################
+
+Write an SQL query to identify the names of students who scored the highest mark in comparison to their peers in every subject they attended.
+
+Table Schema:
+
+students:
+
+student_id (integer) - Unique identifier for each student.
+student_name (varchar) - Name of the student.
+details (varchar) - Additional details related to the student (for this challenge, it may have a static value like 'X').
+subjects:
+
+subject_id  (varchar) - Unique identifier for each subject (e.g., 'M' for Math).
+subject_name (varchar) - Name of the subject (e.g., 'Math', 'English').
+marks:
+
+student_id (integer) - Identifier linking to the students table.
+subject_id (varchar) - Identifier linking to the subjects table.
+mark_rate (integer) - The mark or score the student has received for the subject.
+Resultant Dataset Columns:
+
+student_id - Unique identifier for the student.
+student_name - The name of the student.
+The result should be ordered by student_id in descending order.
+
+
+with max_rate as (
+  select subject_id, max(mark_rate) from marks group by subject_id
+)
+select student_id, student_name
+from students 
+join marks using (student_id)
+join max_rate using (subject_id)
+group by student_id
+having every(mark_rate = max)
+order by 1 desc
+
+########################################################
+
 In an e-commerce company, an inventory of products is maintained. Each product has a certain quantity in stock. For reporting purposes, we need to display the data of the inventory where each product appears as many times as its quantity in stock.
 
 We have a table called products. The products table has the following columns: product_id (an integer representing the unique ID of the product), product_name (a text string representing the name of the product), and quantity_in_stock (an integer representing the quantity of the product in stock).
