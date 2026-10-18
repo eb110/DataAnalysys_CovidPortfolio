@@ -1,3 +1,445 @@
+You are working with a database that stores information about employees in a tech firm. The database includes a table named employees with the following columns:
+
+employee_id: A unique integer identifier for each employee.
+full_name: A string representing the employee's full name.
+team: A string that specifies which team the employee is part of. The team can be one of the following four: "backend", "frontend", "devops", or "design".
+birth_date: A date that represents the employee's birthdate.
+The company is planning an event where the youngest employee from each team will be given a chance to share their vision of future technology trends.
+
+Your task is to write an SQL query that retrieves the complete record for the youngest member of each team. You should consider the person with the latest birthdate as the youngest. Let's assume for this task that the are no youngest employees who share the same birthdate.
+
+The classical solution of using aggregate function and group by is forbidden. Can you come up with something more witty?
+
+The result should be ordered by team in asc alphabetical order.
+
+with cte as(
+select em.employee_id, em.full_name, em.team, em.birth_date, row_number() over (partition  by em.team) as rw
+from (select * from employees order by 3,4 desc) as em)
+
+select employee_id, full_name, team, birth_date
+from cte
+where rw = 1
+
+#########################################################
+
+Task
+Given the database where users are stored in JSON format, fetch the records splitting the data into separate columns.
+
+Notes
+The private field determines whether the user's email address should be publicly visible
+If the profile is private, email_address should equal "Hidden"
+The users may have multiple email addresses
+If no email addresses are provided, email_address should equal "None"
+If there're multiple email addresses, the first one should be shown
+The date_of_birth is in the yyyy-mm-dd format
+The age fields represents the user's age in years
+Order the result by the first_name, and last_name columns
+
+with cte as(
+SELECT 
+replace(jsonb_pretty(data::jsonb -> 'first_name'), '"', '') as first_name, 
+replace(jsonb_pretty(data::jsonb -> 'last_name'), '"', '') as last_name,
+extract(year from age(current_date::date, cast(replace(jsonb_pretty(data::jsonb -> 'date_of_birth'), '"', '') as date))) as age,
+replace(jsonb_pretty(data::jsonb -> 'email_addresses' -> 0), '"', '') as email_address,
+jsonb_pretty(data::jsonb -> 'private')::bool as access
+from users)
+
+select first_name, last_name, age, 
+case 
+  when access is true then 'Hidden'
+  when email_address is null then 'None'
+  else email_address
+end as email_address
+from cte
+order by 1, 2
+
+###############################################
+
+function exercise
+
+create or replace function boost_f (s int, t int)
+returns bigint as $$
+declare
+  boost int = 0;
+begin
+  boost = least(s / 3 + 1, (t + 1) / 2);
+  return (t + boost) * s - boost * (boost - 1) * 3 / 2;
+end;
+$$ language plpgsql;
+
+select s, t, boost_f(s, t) as res
+from speedandtime
+order by 1, 2
+
+##########################################
+
+Given the information about sales in a store, calculate the total revenue for each day, month, year, and product.
+
+Notes
+The sales table stores only the dates for which any data has been recorded - the information about individual sales (what was sold, and when) is stored in the sales_details table instead
+The sales_details table stores totals per product per date
+Order the result by the product_name, year, month, day columns
+We're interested only in the product-specific data, so you shouldn't return the total revenue from all sales
+Input tables
+----------------------------------------
+|    Table      |   Column   |  Type   |
+|---------------+------------+---------|
+| products      | id         | int     |
+|               | name       | text    |
+|               | price      | numeric |
+|---------------+------------+---------|
+| sales         | id         | int     |
+|               | date       | date    |
+|---------------+------------+---------|
+| sales_details | id         | int     |
+|               | sale_id    | int     |
+|               | product_id | int     |
+|               | count      | int     |
+-----------------------------------------
+Output table
+--------------------------
+|    Column    |  Type   |
+|--------------+---------|
+| product_name | text    |
+| year         | int     |
+| month        | int     |
+| day          | int     |
+| total        | numeric |
+--------------------------
+Example output
+product_name | year | month | day | total
+-------------+------+-------+-----+------
+ milk        | 2019 | 01    | 01  | 200
+ milk        | 2019 | 01    | 02  | 190
+ milk        | 2019 | 01    |     | 390
+ milk        | 2019 | 02    | 01  | 240
+ milk        | 2019 | 02    |     | 240
+ milk        | 2019 |       |     | 630
+ milk        |      |       |     | 630
+
+
+with cte as(
+SELECT pr.name as product_name, date_part('year', date) as year,
+date_part('month', date) as month,
+date_part('day', date) as day, (pr.price * sd.count) as total FROM sales_details as sd
+join sales as sl
+on sd.sale_id = sl.id
+join products as pr
+on sd.product_id = pr.id)
+
+select * from cte
+union all
+select product_name, year, month, null, sum(total) as total from cte
+group by month, year, product_name
+union all
+select product_name, year, null, null, sum(total) as total from cte
+group by year, product_name
+union all
+select product_name, null, null, null, sum(total) as total from cte
+group by product_name
+order by 1,2,3,4
+
+#################################################################
+
+function exercise
+
+create or replace function sum_doors (n int)
+returns int as $$
+declare
+  licznik int := 0;
+  viader int := 1;
+begin
+      while viader * viader <= n loop
+        licznik = licznik + 1;
+        viader = viader + 1;
+      end loop;
+      return licznik;
+end;
+$$ language plpgsql;
+
+
+select n, sum_doors(n) as res from doors
+
+####################################
+
+Function
+
+create or replace function sum_fct (f_max bigint)
+returns bigint as $$
+declare
+  a bigint := 0;
+  b bigint := 1;
+  res bigint := 0;
+begin
+      while b < f_max loop
+        a = a + b;
+        if a < f_max and mod(a, 2) = 0 then res = res + a;
+        end if;
+        b = b + a;
+        if b < f_max and mod(b, 2) = 0 then res = res + b;
+        end if;
+      end loop;
+      return res;
+end;
+$$ language plpgsql;
+  
+select n, sum_fct(n) as res from evenfib
+group by(res, n)
+order by n
+
+########################################
+
+You are given a table named orders in a PostgreSQL database, which stores order details for an e-commerce application. order_id is the primary key and product_id represents the product ordered.
+
+A sample set of data is as follows:
+
+| order_id | product_id |
+|----------|------------|
+|    1     |     8      |
+|    2     |     3      |
+|    3     |     12     |
+|    4     |     8      |
+|    5     |     7      |
+|    6     |     8      |
+|    7     |     3      |
+|    8     |     1      |
+Your task is to write a PostgreSQL query that retrieves the orders in ascending order by order_id. However, there's a specific ordering condition - if there are multiple orders for the same product (product_id has duplicates), those orders should appear first. Within these groups and the remaining orders, they should be sorted by the smallest order_id of the group and then by order_id.
+
+So thus the expected output of running this query with the provided sample data would be:
+
+| order_id | product_id |
+|----------|------------|
+|    1     |     8      |
+|    4     |     8      |
+|    6     |     8      |
+|    2     |     3      |
+|    7     |     3      |
+|    3     |     12     |
+|    5     |     7      |
+|    8     |     1      |
+Let's break this down:
+
+We need to group orders with the same product_id together: This is the reason why all orders for product_id=8 are together, and all orders for product_id=3 are together in the output. The groups are then positioned above the orders that have unique product_ids (1, 7, 12).
+
+Sort by the smallest order_id of each group: This is why the group of orders for product_id=8 comes before the group of orders for product_id=3. Within the group for product_id 8, the smallest order_id is 1, and within the group for product_id 3, the smallest order_id is 2. Therefore, the group with the smallest order_id (product_id=8) comes first.
+
+Then we need to sort by order_id in ascending order within each group and the remaining orders.
+
+
+with cte as(
+select *,
+case when count(*) over (partition by product_id) > 1 then 2
+else 1
+end as dupa1,
+min(order_id) over (partition by product_id) as dupa2
+from orders
+order by 3 desc, 4, 1
+)
+
+select order_id, product_id
+from cte
+
+##########################################
+
+Your goal is to write SQL query that will generate a descending star pattern. The number of stars in the first line should be parameterized. You will use PostgreSQL's support for prepared statements to achieve this.
+
+Complete the SQL query started in the PREPARE statement. The query must accept a single integer parameter that specifies the number of stars in the first line. The placeholder $1 should be used for this parameter.
+
+if the parameter is 3, the query should return:
+
+***
+**
+*
+Notes:
+
+The query should return a single column, star_pattern, where each row contains a string made up of stars.
+
+
+prepare draw_pattern(int) as
+select repeat('*', gs) as star_pattern from generate_series(1, $1) as gs
+order by 1 desc
+
+################################################
+
+date time test
+
+select order_time, now() - interval '1 hour' as timek, 
+(select count(*) from order_processing where order_time > now() - interval '1 hour') as oc, 
+        (select count(*) from order_errors where order_time > now() - interval '1 hour') as ec from order_errors
+where order_time > now() - interval '1 hour'
+
+
+#############################################
+
+You are working for a company that provides a video streaming platform. They are interested in understanding the length of video streaming sessions their users have. To do this, they've collected data for each session and stored it in a PostgreSQL database.
+
+The database has a table called sessions with the following columns:
+
+session_id (integer): A unique identifier for each streaming session.
+length_seconds (integer): The length of the streaming session in seconds.
+Write a SQL query to count the number of sessions that fall within five-second intervals (e.g., 0-4, 5-9, etc.).
+
+Your query should return a result set with two columns:
+
+bucket (text): This represents the five-second interval. It should be a string in the format "start-end", where "start" is the beginning of the interval and "end" is the end of the interval. For example, a session length of 25 seconds should fall into the "25-29" bucket.
+count (integer): The number of sessions that fall within the interval represented by the bucket.
+So on the concrete example, for this sample dataset:
+
+| session_id | length_seconds |
+|------------|----------------|
+|     1      |      25        |
+|     2      |      453       |
+|     3      |      27        |
+The result of the SQL query will be:
+
+|  bucket  | count |
+|----------|-------|
+|  25-29   |   2   |
+| 450-454  |   1   |
+
+
+with cte as(
+select *, 
+(select count(*) from sessions where length_seconds >= test and length_seconds < test + 5) as count 
+ from generate_series(0, (select max(length_seconds) from sessions), 5) as test)
+  
+select concat(test, '-', (test + 4)) as bucket, count from cte
+where count > 0
+
+###########################################
+
+Complete the SQL query started in the PREPARE statement.
+
+prepare generate_factorial(int) as
+-- Your SQL here
+The objective is to write a SQL query that generates a table of factorials for the numbers from 1 to a given integer n. The query must accept a single integer parameter to specify this upper bound n. Use the placeholder $1 for this parameter.
+
+Input and Output
+
+Input: Single integer parameter n (where 1 <= n <= 12)
+Output: A table containing integers from 1 to n in the column n and their corresponding factorials in the column result. result should be of integer datatype
+
+
+create or replace function recursive_function (ct int, f int, mk int)
+returns table (n int, result int)
+language plpgsql
+as $$
+begin
+    return query select ct, f;
+    if ct < mk then
+        return query select * from recursive_function(ct + 1, f * (ct + 1), mk);
+    end if;
+end $$;
+
+prepare generate_factorial(int) as
+select * from recursive_function(1, 1, $1)
+
+##########################################################
+
+
+We need to identify hosts in a network that are missing a specific software title, in this case, "Title2" This query aims to support IT operations in understanding which hosts might be non-compliant with required software installations or may require updates.
+
+host_software table:
+
+id (integer) - primary key
+host (varchar) - Represents the name of the host machine ('web_server_1', 'db_server_2' etc,)
+software_title (varchar) - represents the name of the software installed on the host. ( 'Title1', 'Title2', 'Title3', etc.)
+install_date (date) - Records the date of the software installation.
+Requirements:
+
+The query should return a list of host names.
+Each host name in the list should represent a host machine where "Title2" is missing.
+The query should also filter out hosts that haven't had any software installed in over a year from the current date, as these might be decommissioned or out-of-scope for immediate attention. In other words, if a host has all installations older than a year, it should not appear in the result set. Also, "one year from the current date" criterion should be inclusive of the current date. That is, any software installed exactly one year ago from today should also be considered "recent."
+The result should contain only one column, host, and be sorted in ascending alphabetical order.
+
+
+select host from host_software as hs
+where 'Title2' not in (select software_title from host_software where host = hs.host) and
+hs.install_date >= current_date - interval '1 year'
+group by host
+order by 1
+
+##########################################################
+
+As a database manager, you're tasked with reviewing user roles to enhance system security. Your objective: Identify users with exclusively 'admin' or 'internal' roles, but not both, mirroring the XOR (exclusive OR) logic. This will aid in refining role-based access controls in the organization.
+
+We have a table named user_roles with the following structure:
+
+id (integer): the unique identifier of the record.
+username (string) - the username of the user.
+role (string) - the role assigned to the user. Can be 'admin', 'internal', or 'external'.
+You need to write an SQL query which identifies users who have either the role admin or internal, but not both.
+
+The result should be sorted by usernamre in ascending alphabetical order and have the following columns:
+
+username (string)
+internal (boolean) - has the value of true if the user has the 'internal' role and false otherwise.
+admin (boolean) - has the value of true if the user has the 'admin' role and false otherwise.
+
+with cte as(
+select distinct(username), array_agg(role) as roles
+from user_roles
+where role <> 'external'
+group by username
+)
+
+select username,
+case
+  when roles[1] = 'internal' then true
+  else false
+end as internal,
+case
+  when roles[1] = 'admin' then true
+  else false
+end as admin
+from cte
+where cardinality(roles) = 1
+order by username
+
+###############################################################
+
+We have a table recipe_priority the following schema:
+
+id (integer) - primary key
+group_id (integer) - Identifier for grouping recipes, can have duplicate values
+recipe (varchar) - Name or code representing the recipe, can have duplicate values within the same group
+priority (integer) - Numerical value indicating the priority of a recipe within a group
+Write an SQL query that sorts rows from this table based on the following hierarchy of importance:
+
+Group ID: Sort by group in ascending order.
+Max Priority within Group and Recipe: Sort by the highest priority associated with each recipe within each group in descending order.
+Recipe: Sort by recipe name in ascending alphabetical order.
+Priority: Sort by individual row priority in descending order.
+ID: Sort by id in desc order to break ties.
+
+
+with cte as (
+select *, max(priority) over (partition by recipe) as max_gr_pr
+from recipe_priority
+order by 2, 5 desc, 3, 4 desc, 1 desc)
+
+select id, group_id, recipe, priority from cte
+
+
+***********************************************************
+
+
+In this task, you will work with a PostgreSQL database that contains a table named ip_addresses. This table has two columns, id (an integer that uniquely identifies each row) and ip (a string that contains an IP address). Some of the IP addresses have leading zeros.
+
+Your task is to write a SQL query that returns each id and its associated IP address, but with all leading zeros removed from the IP address. The result should be a new column named cleaned_ip.
+
+Notes:
+
+The IP addresses in the table are guaranteed to be valid and always contain exactly four octets, separated by dots. Note that an octet with all zeros (e.g., 000) should be transformed into 0, not removed entirely.
+The result should be ordered by id in descending order.
+
+select id,
+regexp_replace(ip, '(^|\.)(0+)(\d)', '\1\3', 'g') as cleaned_ip
+from ip_addresses
+order by id desc
+
+##########################################################
+
 Your task is to write a parameterized PostgreSQL query to fetch the accessible sections based on a given user ID. The query should only return sections to which the user has access. The result set should contain the columns id and section_name and should be ordered by id in ascending order.
 
 section_access schema:
