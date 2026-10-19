@@ -1,3 +1,88 @@
+XML parsing (xpath approach)
+
+with cte as(
+select unnest(xpath('data/user/first_name/text()', data))::varchar as first_name,
+unnest(xpath('data/user/last_name/text()', data))::varchar as last_name,
+unnest(xpath('data/user/date_of_birth/text()', data)) as age,
+regexp_replace(
+xpath('email_addresses/address/text()', unnest(xpath('data/user/email_addresses', data)))::varchar,
+'(\{|}|,.*)', '', 'g') as email_address,
+(unnest(xpath('data/user/private/text()', data))::varchar)::boolean as access
+FROM users)
+
+select first_name, last_name, 
+extract('year' from age(current_date::date, (age::varchar)::date)) as age, 
+case 
+  when access is true then 'Hidden'
+  when email_address = '' then 'None'
+  else email_address
+end as email_address
+from cte
+order by 1,2
+
+######################################################
+
+Let's consider a case where we have a students table and a courses table. The tables have the following structure:
+
+students:
+
+| id  | name     | email               |
+|-----|----------|---------------------|
+| 1   | John     | john@example.com    |
+| 2   | Sarah    | sarah@example.com   |
+| 3   | Robert   | robert@example.com  |
+...
+courses:
+
+| id  | student_id | course_name | score |
+|-----|------------|-------------|-------|
+| 1   | 1          | Math        | 90    |
+| 2   | 1          | Science     | 85    |
+| 3   | 2          | Math        | 92    |
+| 4   | 2          | Science     | 80    |
+...
+We need to find the students who have a higher score in Science than in Math.
+
+Your SQL query should return the student_id, name (the name of the student), and his or her difference in scores between these courses (named as score_difference).
+
+Order the result by the difference in scores in descending order, and if diffrence is the same, then by student_id in ascending order.
+
+
+select cs.student_id, st.name, 
+score - (select score from courses where student_id = cs.student_id and course_name = 'Math') as score_difference
+from students as st
+join courses as cs
+on st.id = cs.student_id
+where cs.course_name = 'Science' and score - (select score from courses where student_id = cs.student_id and course_name = 'Math') > 0
+order by 3 desc, 1
+
+#################################################################
+
+
+Cantor pairing function
+
+create or replace function cnt_fc (n bigint)
+returns varchar as $$
+declare
+  m bigint := 0;
+  p bigint := 0;
+  d bigint := 0;
+begin
+  m = ceil((sqrt(1 + 8 * n) - 1) / 2);
+  p = m * (m + 1) / 2;
+  if mod(m, 2) = 0 then d = m - 1 - p + n;
+  else d = p - n;
+  end if;
+  return concat('', (1 + d), '/', (m - d));
+end;
+$$ language plpgsql;
+
+
+select n, cnt_fc(n) as res
+from cantor
+
+#################################################
+
 You are working with a database that stores information about employees in a tech firm. The database includes a table named employees with the following columns:
 
 employee_id: A unique integer identifier for each employee.
