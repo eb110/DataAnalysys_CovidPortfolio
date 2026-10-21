@@ -1,3 +1,349 @@
+Write an SQL query to retrieve the percentage of films with each rating for each category in the DVD rental database. The query should display the following columns:
+
+category_name: The name of the category that the films belong to.
+film_rating: The rating of the films in the category.
+percentage: The percentage of films with the given rating in the category. This param should be rounded to 3 decimal places (and exactly 3 decimal places should be displayed).
+The query result should be ordered by category_name in ascending order, and then by percentage in descending orders. If there are tied percentages for a given category, the results should be ordered by film rating in alphabetical order.
+
+Notes:
+for the sample tests, static dump of DVD Rental Sample Database is used, for the final solution - random tests.
+The percentage should be calculated by dividing the count of films with the given rating by the total count of films in the category, multiplied by 100
+please use numeric type to display percentage
+Good luck!
+
+Schema
+film table:
+Column           | Type     | Modifiers
+-----------------+----------+----------
+film_id          | integer  | not null
+title            | varchar  | not null
+description      | text     | not null
+rating           | varchar  | not null
+film_category table:
+Column      | Type      | Modifiers
+------------+---------- +----------
+film_id     | smallint  | not null
+category_id | smallint  | not null
+category table:
+Column      | Type      | Modifiers
+------------+-----------+----------
+category_id | smallint  | not null
+name        | text      | not null
+
+
+with cte as (
+select c1.name as category_name, f1.rating as film_rating, count(*) over (partition by c1.name) as total_category,
+(select count(*) from film_category as fc2
+join category as c2 using (category_id)
+join film as f2 using (film_id)
+where c2.name = c1.name and f2.rating = f1.rating) as total_rating
+from film_category as fc1
+join category as c1 using (category_id)
+join film as f1 using (film_id))
+
+select category_name, film_rating, round(total_rating * 100.0 / total_category, 3) as percentage
+from cte
+group by film_rating, category_name, total_rating, total_category
+order by 1, 3 desc, 2
+
+###############################################
+
+You are given a denormalized database table called world_population with columns id, country, year, and population. The table contains population data for various countries over the years.
+
+Your task is to write a SQL query that finds the top 5 countries with the highest population increase strictly between the years 2000 and 2020, inclusive. The result should show the country name and the population increase in millions, rounded to 2 decimal places. The query should group the results by country and sort them in descending order based on the population increase.
+
+Notes:
+population_increase should be obtained by dividing the result by 1,000,000 to convert the number to millions, rounding it to 2 decimal places and afterwards by adding an abbreviation for millions, "M", to the end of result.
+for the sample test is used static actual data taken from the United Nations, for the final solution - random test.
+for this task there is no data missing, so you don't need to take into account that data for a year for some countries may be lacking
+to avoid ambiguety: by "increase" is simply meant "population at year y1 - population at year y2".
+
+with cte as (
+select wp1.country, (round((wp2.population - wp1.population) / 1000000.0, 2))::real as population_increase
+from world_population as wp1
+join (select * from world_population as wp2 where wp2.year = 2020) as wp2 using (country)
+where wp1.year = 2000 order by 2 desc)
+
+select country, to_char(population_increase, 'fm999.00') || ' M' as population_increase
+from cte
+limit 5
+
+###############################################
+
+user_id (integer) - Represents the unique identifier for a user.
+kata_id (integer) - Represents the unique identifier for a kata.
+kata_votes:
+
+kata_id (integer) - Represents the unique identifier for a kata. This is linked to the kata_id in the kata_authors table.
+vote (float) - Represents the vote given to a kata. Can only be one of three values:
+1: "very satisfied"
+0.5: "somewhat satisfied"
+0: "not satisfied"
+Your task is to create a SQL query to identify bad kata authors.
+
+A bad kata is defined as one which:
+
+Has received at least three votes.
+Has an average vote of strictly less than 0.7.
+We want to identify authors who have created 5 or more bad katas.
+
+The output should List user IDs (user_id) and the count of their bad katas (bad_kata_count). And be ordered first by the count of bad katas in descending order. In case of a tie - by user ID in descending order.
+
+with cte as(
+select user_id, kata_id, avg(vote) from kata_votes
+join kata_authors using (kata_id)
+group by kata_id, user_id
+having count(vote) > 2 and avg(vote) < 0.7)
+
+select distinct(user_id), count(user_id) as bad_kata_count
+from cte
+group by user_id
+having count(user_id) > 4
+order by 2 desc, 1 desc
+
+
+###############################################
+
+We have admissions table:
+
+entry_id (int): primary key
+join_date (datetime): Date and time when the patient was admitted.
+name (varchar): Name of the patient.
+and exits table:
+
+entry_id (int): primary key
+exit_date (datetime): Date and time when the patient was discharged.
+name (varchar): Name of the patient.
+Write a SQL query to generate a daily report that includes the number of admissions, the number of discharges, the net change in patient count for each day, and the cumulative net change over time.
+
+Result should have the following columns:
+
+date (varchar): The date of the event.
+joins (int): The number of admissions on that date.
+exits (int): The number of discharges on that date.
+net (int): The net change in patient count (joins - exits) for that date.
+cumulative_net (int): The cumulative net change in patient count up to that date.
+Do not include dates that have neither admissions nor discharges. The report should be sorted by the date column in ascending order.
+
+with cte as(
+select 
+coalesce(ad.jd, ex.ed)::varchar as date, 
+coalesce(ad.jc, 0) as joins,
+coalesce(ex.ec, 0) as exits, 
+coalesce(ad.jc, 0) - coalesce(ex.ec, 0) as net
+from(select distinct(ad.join_date::date) as jd, 
+count(*) over (partition by ad.join_date::date) as jc from admissions as ad) as ad
+full join (select distinct(ex.exit_date::date) as ed, 
+count(*) over (partition by ex.exit_date::date) as ec from exits as ex) as ex
+on ad.jd::date = ex.ed::date
+order by 1)
+
+select *, sum(net::int) over (order by date) as cumulative_net
+from cte
+
+###################################################
+
+You need to write a sql query that will return the daily balance history from monetary operations tables for all the time.
+
+The balance of the day (end day balance) is equal to the balance at the begin of the day with total amount of operations during the day added. The balance at the begin of the day is equal to the balance at the end of the previous day. The balance before the very first operation is zero.
+
+Input
+operations
+ Column    |  Type      |
+-----------+------------+
+ amount    | numeric    |
+ date      | timestamp  |
+    amount             date      
+--------------------------------------+
+502.944042810036   2020-01-01T00:01:00.000+00:00
+For this task we need to get film_id, film title and length from the film table in the DVD rental database, but with a twist: we need to exclude films with a length between the minimum length of R-rated films and the median length of PG-13 rated films. This means that the selected films will be either strictly shorter than the shortest R-rated film or strictly longer than of median length PG-13 rated film
+
+Notes:
+for the sample tests, static dump of DVD Rental Sample Database is used, for the final solution - random tests.
+List should be sorted by the length of film from lowest to highest and if length is the same - then by title of film alphabetically, if even titles are the same - then by film_id in asc order.
+Since length is an integer, we should use PERCENTILE_DISC to calculate a median. percentile_disc returns a discrete value from the dataset that matches the specified percentile, while percentile_cont returns an interpolated value that lies between two adjacent data points. So for a dataset of discrete values, like integer lengths of films in our task, percentile_disc would be more appropriate to use for calculating percentiles, while for a dataset of continuous values, like temperature measurements, percentile_cont would be more appropriate.
+(kudos to Voile for bringing this out)
+Schema:
+film table:
+Column            | Type      | Modifiers
+------------------+-----------+-----------
+film_id           | integer   | not null
+title             | varchar   | not null
+description       | text      | not null
+release_year      | integer   | not null
+language_id       | integer   | not null 
+rental_duration   | integer   | not null
+rental_rate       | numeric   | not null
+length            | integer   | not null
+replacement_cost  | numeric   | not null
+rating            | varchar   | not null
+last_update       | timestamp | not null
+Desired Output
+The desired output should look like this:
+
+film_id | title                             | length |
+--------+-----------------------------------+--------|
+   32   | The Shawshank Redemption          | 40     | 
+   14   | Monty Python and the Holy Grail   | 41     |
+
+
+select film_id, title, length
+from film
+where length < (select min(length) from film where rating = 'R') 
+or length > (select percentile_disc(0.5) within group(order by length) from film where rating = 'PG-13')
+order by 3, 2, film_id
+
+################################################
+
+1101.5004691791    2020-01-01T00:02:00.000+00:00
+1618.92180791447   2020-01-01T00:03:00.000+00:00
+-1656.39770507234  2020-01-02T10:01:00.000+00:00
+656.39770507234    2020-01-03T00:05:00.000+00:00
+-656.39770507234   2020-01-03T00:07:00.000+00:00
+613.944042810036   2020-01-04T01:01:00.000+00:00
+..
+Output
+ Column    |  Type      |
+-----------+------------+
+ date      | date       |
+ balance   | numeric    |
+  date    |   balance      
+--------------------------+
+2020-01-01  3223.3663199036064
+2020-01-02  1566.9686148312664
+2020-01-03  1566.9686148312664
+
+with cte as (
+select distinct(date::date) as date,'test' as id, sum(amount) over (partition by date::date) as balance
+from operations
+)
+
+select date, sum(balance) over (order by date) as balance from cte
+
+
+##################################################
+
+Write an SQL query to retrieve the top 5 customers who have rented the most movies, excluding customers who have rented at least one movie with an 'NC-17' rating. Subqueries are forbidden to make the task a bit curiouser - you can use select only once
+
+Notes:
+If two or more customers have the same amount of rentals then sort by last name alphabetically.
+Schema
+customer table:
+Column       | Type     | Modifiers
+------------ +----------+----------
+customer_id  | integer  | not null
+first_name   | varchar  | not null
+last_name    | varchar  | not null
+email        | varchar  | not null
+inventory table:
+Column       | Type      | Modifiers
+------------ +-----------+----------
+inventory_id | integer   | not null
+film_id      | smallint  | not null
+store_id     | smallint  | not null
+film table:
+Column           | Type     | Modifiers
+-----------------+----------+----------
+film_id          | integer  | not null
+title            | varchar  | not null
+description      | text     | not null
+rating           | varchar  | not null
+rental table:
+Column       | Type      | Modifiers
+-------------+-----------+----------
+rental_id    | integer   | not null
+customer_id  | integer   | not null
+inventory_id | integer   | not null
+rental_date  | timestamp | not null
+return_date  | timestamp | 
+
+
+select rnt.customer_id, first_name ||' '|| last_name as full_name, 
+count(*) as total_rentals
+from rental as rnt
+join customer as ctm using (customer_id)
+join inventory as inv using (inventory_id)
+join film as flm
+on flm.film_id = inv.film_id
+group by rnt.customer_id, first_name, last_name
+having every (rating <> 'NC-17')
+order by 3 desc, last_name
+limit 5
+
+################################################################
+
+users table:
+
+Columns: id, name
+Primary key: id
+products table:
+
+Columns: id, product_name
+Primary key: id
+orders table:
+
+Columns: id, user_id, product_id
+Primary key: id
+Foreign keys: user_id references users(id), product_id references products(id)
+In this kata, we need to find the most popular product (i.e., the product that has been ordered the most). In case of a tie in the number of orders, return all most ordered products ordered by product ID in descending order. Include in the result also the total number of orders for that product.
+
+with cte as (select distinct(pr.id) as product_id, pr.product_name, count(*) over (partition by pr.id) as count_orders 
+from orders as ord
+join products as pr
+on ord.product_id = pr.id
+join users as usr
+on ord.user_id = usr.id
+order by 1 desc)
+
+select * from cte
+where (select max(count_orders) from cte) = cte.count_orders
+
+##############################################
+
+Write a SQL query that retrieves the actor_id, full_name, and film_title of the most recent film that an actor whose first name starts with the letter "J" has participated in. The report should be ordered by actor_id in ascending order.
+
+Notes:
+Unfortunately, DVD Rental DB does not have a timestamp for the release date of the film (only year), so by "the most recent film" we will simply take "the film with the biggest film_id". So, for example, if the actor has been starred in the films that have ids of 545 and 4, and 405 - we need to take the film with an id of 545
+
+for the sample tests, static dump of DVD Rental Sample Database is used, for the final solution - random tests.
+
+Schema
+film table:
+Column           | Type     | Modifiers
+-----------------+----------+----------
+film_id          | integer  | not null
+title            | varchar  | not null
+description      | text     | not null
+rating           | varchar  | not null
+film_actor table:
+Column   | Type     | Modifiers
+---------+----------+----------
+id       | integer  | not null
+film_id  | integer  | not null
+actor_id | integer  | not null
+actor table:
+Column      | Type      | Modifiers
+------------+-----------+----------
+actor_id    | integer   | not null
+first_name  | varchar   | not null
+last_name   | varchar   | not null
+
+with cte as (
+select fa.actor_id, max(fl.film_id) as film_id, concat(ac.first_name, ' ', ac.last_name) as full_name
+from film_actor as fa
+join film as fl
+on fl.film_id = fa.film_id
+join actor as ac
+on fa.actor_id = ac.actor_id
+where substring(ac.first_name, 1, 1) = 'J'
+group by fa.actor_id,ac.first_name, ac.last_name
+order by 1)
+
+select actor_id, full_name, (select title from film as fm where cte.film_id = fm.film_id) as film_title
+from cte
+
+###################################################
+
 XML parsing (xpath approach)
 
 with cte as(
