@@ -1,8 +1,698 @@
-Write an SQL query to retrieve the percentage of films with each rating for each category in the DVD rental database. The query should display the following columns:
+We have calls table:
 
-category_name: The name of the category that the films belong to.
-film_rating: The rating of the films in the category.
-percentage: The percentage of films with the given rating in the category. This param should be rounded to 3 decimal places (and exactly 3 decimal places should be displayed).
+call_id (int, primary key): Unique identifier for each call.
+timestamp (timestamp): The date and time the call was received.
+status (varchar): The status of the call ('bot_handled', 'transferred_to_rep').
+and transcriptions table:
+
+transcription_id (int, primary key): Unique identifier for each transcription.
+call_id (int, foreign key referencing calls(call_id)): Identifier for the call associated with this transcription.
+content (text): The text transcription of what the customer said during the call.
+Determine the peak hours (hour of the day) when calls were transferred to a human representative due to customers using the F-word three or more times in a single transcription.
+
+You need to:
+
+Extract Words from Transcriptions:
+
+The query should account for punctuation marks. Words can be wrapped in punctuation (e.g., "F-word! You are liar, F-word bot!").
+Note that due to software errors, there might be multiple spaces in the transcription. Therefore, you should handle splitting words even if there are multiple spaces.
+Count F-Words:
+
+Identify calls where the customer used the F-word three or more times in a single transcription. Note that all slurs are transcribed exactly as F-word (case sensitivity is not an issue).
+Filter by Status:
+
+Only consider calls with the status transferred_to_rep.
+Get Peak Times:
+
+Determine the peak hours (0-23) when these calls occurred.
+The result set should contain the following columns:
+
+call_hour (int): The hour of the day when the calls occurred (0-23).
+angry_call_count (int): The number of calls transferred to a human representative due to customers using the F-word three or more times.
+The results are ordered by the number of angry calls (angry_call_count) in descending order to highlight the peak hours. In case of a tie, the results are further ordered by the hour of the day (call_hour) in ascending order.
+
+Note: The voice recognition software ensures that slurs are transcribed exactly as "F-word" without concatenation or unusual punctuation, so situations like "F-word_F-word" are impossible.
+
+For this sample data:
+
+calls:
+| call_id |      timestamp      |      status       |
++---------+---------------------+-------------------+
+|    1    | 2024-06-26 14:00:00 | transferred_to_rep|
+|    2    | 2024-06-26 15:00:00 | transferred_to_rep|
+|    3    | 2024-06-26 15:00:00 | transferred_to_rep|
+|    4    | 2024-06-26 16:00:00 |    bot_handled    |
+|    5    | 2024-06-26 16:00:00 | transferred_to_rep|
+|    6    | 2024-06-26 16:30:00 | transferred_to_rep|
+transcriptions:
+| transcription_id| call_id |                 content                      |
++-----------------+---------+----------------------------------------------+
+|        1        |    1    | F-word   F-word. You are a liar, F-word bot! |
+|        2        |    2    | Hello. F-word. F-word! F-word.               |
+|        3        |    3    | This is a test.                              |
+|        4        |    4    | No bad words here.                           |
+|        5        |    5    | F-word, F-word,  F-word!                     |
+|        6        |    6    | F-word, F-word; F-word! F-word: F-word?      |
+the desired output is the following:
+
+| call_hour | angry_call_count |
++-----------+------------------+
+|     16    |        2         |
+|     14    |        1         |
+|     15    |        1         |
+
+
+select date_part('hour', cl.timestamp) as call_hour, count(*) as angry_call_count
+from calls as cl
+join transcriptions as tr using (call_id)
+where cl.status = 'transferred_to_rep' and cardinality(string_to_array(tr.content, 'F-word')) > 3
+group by call_hour
+order by 2 desc, 1
+
+
+####################################################
+
+
+Your task is to write an SQL query that analyzes the popularity of children's films based on their rental history. The query should display a list of all children's films, along with their popularity level and rental count. The popularity level should be based on the number of unique customers who have rented each film, and should be divided into four categories: "not popular" (<= 5 rentals), "slightly popular" (<= 15 rentals), "moderately popular" (<=30 rentals), and "very popular" (> 30 rentals). The rental count should reflect the total number of times each film has been rented.
+
+The query should display the following columns:
+
+film_id: The unique identifier of the film.
+popularity: A string that shows the popularity level of the film, as described above. It should be in the format [film_title] is [popularity according to quantity of rentals]
+rental_count: The total number of times the film has been rented.
+Notes:
+for the sample tests, static dump of DVD Rental Sample Database is used, for the final solution - random tests.
+
+children's films meaning that they belong to Children category
+
+We need to ensure that films with no rentals are to be ignored from the result set
+
+We need to ensure that each customer is counted only once per film, even if they have rented the same film multiple times (this applies both for popularity and rental_count columns).
+
+List should be sorted by quantaty of rentals from higher to lower and if number of rentals is the same - then by title of film alphabetically
+
+Good luck!
+
+Schema
+film table:
+Column           | Type     | Modifiers
+-----------------+----------+----------
+film_id          | integer  | not null
+title            | varchar  | not null
+description      | text     | not null
+rating           | varchar  | not null
+film_category table:
+Column      | Type      | Modifiers
+------------+---------- +----------
+film_id     | smallint  | not null
+category_id | smallint  | not null
+category table:
+Column      | Type      | Modifiers
+------------+-----------+----------
+category_id | smallint  | not null
+name        | text      | not null
+rental table:
+Column       | Type      | Modifiers
+-------------+-----------+----------
+rental_id    | integer   | not null
+customer_id  | integer   | not null
+inventory_id | integer   | not null
+rental_date  | timestamp | not null
+return_date  | timestamp | 
+inventory table:
+Column       | Type      | Modifiers
+------------ +-----------+----------
+inventory_id | integer   | not null
+film_id      | smallint  | not null
+store_id     | smallint  | not null
+Desired Output
+The desired output should look like this:
+
+film_id | popularity                              | rental_count |
+--------+-----------------------------------------+---------------
+   32   | Robbers Joon is very popular            | 31           | 
+   14   | Invasion Cyclone is moderately popular  | 28           |
+
+
+with cte as (
+select fm.film_id, fm.title, rn.customer_id
+from film as fm
+join film_category as fc using (film_id)
+join inventory as iv using (film_id)
+join category as ct
+on fc.category_id = ct.category_id
+join rental as rn
+on iv.inventory_id = rn.inventory_id
+where ct.name = 'Children'
+group by fm.film_id, rn.customer_id
+order by 1)
+
+select 
+film_id, 
+title || case 
+          when count(*) > 30 then ' is very popular'
+          when count(*) > 15 then ' is moderately popular'
+          when count(*) > 5 then ' is slightly popular'
+          else ' is not popular'
+         end as popularity, 
+count(*) as rental_count
+from cte
+group by film_id, title
+order by 3 desc, 2
+
+
+#######################################################
+
+product_variants:
+
+id (int): Primary key
+product_id (int): Identifier for the product.
+color_id (int): Identifier for a specific color variant of the product.
+size_id (int): Identifier for a specific size variant of the product.
+in_stock (boolean): Indicates whether the variant is in stock (true for in stock, false for out of stock).
+Calculate the total number of unique variants for each product. A unique variant is defined by a unique combination of color_id and size_id. Calculate also the number of variants that are currently in stock for each product.
+
+The output should have the following columns:
+
+product_id: The identifier for the product.
+total_unique_variants: The total number of unique variants of the product.
+in_stock_variants: The number of variants that are currently in stock.
+The result should be sorted by product_id in ascending order.
+
+
+select product_id, count(*) as total_unique_variants,
+sum(
+case 
+  when in_stock = true then 1
+  else 0
+end 
+) as in_stock_variants
+from product_variants
+group by product_id
+order by 1
+
+
+###############################################
+
+
+You are a Data Analyst at a medium-sized retail company, known for its dynamic work schedule. The management is interested in understanding the weekend work patterns of their employees to make informed decisions about staffing and employee incentives. Your task is to analyze the employee attendance data for the year 2023, focusing on weekends.
+
+Write an SQL query to analyze weekend attendance of employees in the year 2023. Your query should identify how many unique weekends each employee worked and the total number of weekend days they worked. Consider a weekend to include both Saturday and Sunday, and count consecutive Saturday and Sunday as one weekend.
+
+We have employee_attendance table:
+
+employee_id (integer): ID of the employee.
+attendance_date (date): The date on which the employee worked.
+Expected Output:
+
+employee_id: ID of the employee.
+weekends_worked: Number of unique weekends during which the employee worked at least once.
+total_weekend_days_worked: Total number of individual weekend days (Saturdays and Sundays) the employee worked.
+Sorting: Descending order of weekends_worked, and then by total_weekend_days_worked in desccending order, and finally by employee_id - also in descending order.
+
+Note: In the provided employee_attendance data, each employee is recorded only once per date, ensuring no duplicate dates or double shifts for the same employee. This unique entry per employee per day must be considered in your analysis.
+
+
+select employee_id,
+sum(case when extract(dow from attendance_date::date)::int = 0
+  and (select count(*) over () from employee_attendance as ea2
+    where ea2.employee_id = ea1.employee_id and ea2.attendance_date = ea1.attendance_date - interval '1 day') > 0
+     and date_part('year', ea1.attendance_date - interval '1 day') = '2023'
+    then 0 
+    else 1
+end) as weekends_worked, count(*) as total_weekend_days_worked
+from employee_attendance as ea1
+where date_part('year', attendance_date) = '2023' and mod(extract(dow from attendance_date::date)::int,6) = 0 
+group by employee_id
+order by 2 desc, 3 desc, 1 desc
+
+
+#########################################################
+
+
+Return the list of films that have not been rented out at all in the past month, but have been rented at least 10 times in total. Include the film_id, title of the film and in the brackets, its rating, rental count, and the date of the most recent rental. Since the business is in America, please use American date notation (for example, 'April 09, 2023').
+
+Notes:
+Sort by count of rented films from higher to lower. If two or more films have the same amount of rentals then sort by last rental date in descending order, if even last rental dates are the same - then by film title alphabetically.
+"in the past month" - interval inclusive of 1 month from CURRENT_DATE. We are not taking time part of today into account for this task
+"sort by last rental date" means by final text presentation, not the date itself.
+Schema
+(not all columns - part of the domain required to solve this kata)
+
+inventory table:
+Column       | Type      | Modifiers
+------------ +-----------+----------
+inventory_id | integer   | not null
+film_id      | smallint  | not null
+film table:
+Column           | Type     | Modifiers
+-----------------+----------+----------
+film_id          | integer  | not null
+title            | varchar  | not null
+rating           | varchar  | not null
+rental table:
+Column       | Type      | Modifiers
+-------------+-----------+----------
+rental_id    | integer   | not null
+inventory_id | integer   | not null
+rental_date  | timestamp | not null
+Desired Output
+The desired output should look like this:
+
+film_id | film_title         | rental_count | last_rental_date
+--------+----------------+------------------+------------------
+   32   | Chinatown (G)      | 23           | January 31, 2023
+   14   | The Terminator (R) | 17           | March 01, 2023
+
+
+select f1.film_id, f1.title || ' (' || f1.rating || ')' as film_title, 
+count(*) as rental_count, 
+to_char(max(r1.rental_date)::date, 'FMMonth DD, YYYY') as last_rental_date
+from film as f1
+join inventory as i1 using (film_id)
+join rental as r1
+on i1.inventory_id = r1.inventory_id
+group by f1.film_id, f1.title
+having max(r1.rental_date)::date < (current_date - interval '1 month')::date and
+count(*) > 9
+order by 3 desc, 4 desc, 2
+
+###########################################################
+
+
+You have been provided with a PostgreSQL table named users. This table includes a jsonb column, info, which holds JSON data. Here is a simplified schema of the table:
+
+id: primary key, integer.
+info: JSON column which includes:
+name: a string (user's name).
+pets: an array of JSON objects (each object represents a pet and has a name field and type field).
+Your task is to construct a SQL query that will return a list of users and their pet names, but only for pets whose name starts with the letter M. If a user has no such pets, the user should not appear in the result table.
+
+The query should return the following columns:
+
+id - the users id
+user_name - the user's name
+pet_names - the names of the pets whose names start with 'M' as a comma-separated list in the order that they appeared in the array.
+Result should be ordered by id in asc order.
+
+
+with cte as (
+select id,
+cast(info ->> 'name' as text) as user_name,
+cast(jsonb_array_elements(info->'pets') ->> 'name' as text) as pet_name,
+cast(jsonb_array_elements(info->'pets') ->> 'type' as text) as pet_type
+from users)
+
+select id, user_name, string_agg(pet_name, ', ') as pet_names from cte
+where pet_type = 'Dog' and substring(pet_name,1,1) = 'M'
+group by id, user_name
+order by 1
+
+
+###############################################
+
+create or replace function arr_fct (datka varchar)
+returns int as $$
+Assume you have a PostgreSQL database with a table named "users". The "users" table has the following columns:
+
+id (integer): a unique identifier for each user.
+name (text): the name of the user.
+birthdate (date): the user's birth date.
+The generational categories are generally defined as follows:
+
+Generation Z: Born from 1997 to 2012 (inclusive)
+Millennials: Born from 1981 to 1996
+Generation X: Born from 1965 to 1980
+Baby Boomers: Born from 1946 to 1964
+Silent Generation: Born from 1928 to 1945
+Greatest Generation: Born in 1927 or earlier
+Your SQL query should return all users sorted by id in asc order from the users table with an additional generation field that indicates the generation to which each user belongs based on the above definitions.
+
+Sounds simple? You are not allowed to use the CASE WHEN operator for this task :-)
+
+
+begin
+  if(datka < '1928')    
+      then return 6;
+  end if;
+  if(datka < '1946')    
+      then return 5;
+  end if;
+  if(datka < '1965')    
+      then return 4;
+  end if;
+  if(datka < '1981')    
+      then return 3;
+  end if;
+  if(datka < '1997')    
+      then return 2;
+  end if;
+  return 1;
+end;
+$$ language plpgsql;
+
+
+select id, name, birthdate, 
+(string_to_array('Generation Z,Millennials,Generation X,Baby Boomers,Silent Generation,Greatest Generation', ','))
+[arr_fct(birthdate::varchar)] as generation
+from users
+order by 1
+
+
+###################################################
+
+
+At Company X, employee certifications are a big deal. Certificates are essential for promotions, training programs, and awards. But lately, there’s been an uproar: employees are fuming about typos in their names on official certificates.
+
+Management has been inundated with complaints:
+
+"Why does my certificate say 'Jon Smyth' when my name is 'John Smith'?"
+"Who is 'Jane Do'? Is that supposed to be me?"
+"I’m so tired of correcting my name for the third time!"
+This chaos has sparked a blame game between data entry specialists. Management hears excuses like:
+
+"It’s not my fault! The names were misspelled in the source data!"
+"I only copy what’s given to me!"
+"Maybe it was Alice who messed it up this time!"
+Management is tired of the finger-pointing. They decide to settle this once and for all with hard metrics...
+
+Objective
+You, as a data analyst, are tasked with identifying errors in certification records created by data entry specialists. Complaints have surfaced about typos in certification names, and management wants actionable metrics to:
+
+Identify the specialists responsible for the most errors.
+Quantify the extent of these errors.
+Improve data entry processes by retraining staff or implementing validation systems.
+Your analysis must focus on records where the Levenshtein distance (edit distance) between the employee’s correct name and the name on their certificate is between 1 and 3, indicating likely typos. Direct string comparison (employees.name != certifications.cert_name) is insufficient because cert_name values sometimes may be entirely unrelated to the employee's name (e.g., an organization name or another person's name).
+
+We have employees table:
+
+id (int, primary key): Unique identifier for the employee.
+name (varchar): Correct name of the employee.
+and certifications table:
+
+id (int, primary key): Unique identifier for the certification record.
+employee_id (int): Foreign key referencing employees.id.
+cert_name (varchar): Name on the certification record (entered by a specialist).
+entered_by (int): Id of the data entry specialist who created or updated the record.
+updated_at (timestamp): Date and time the certification record was last updated.
+Requirements:
+
+Use the Levenshtein function (levenshtein(string1, string2)) to calculate the edit distance between employees.name and certifications.cert_name. We take into account records where the Levenshtein distance is between 1 and 3, as these likely represent typos in the employee’s name. This function is included in the database setup - you don't need to enable/create it manually.
+
+Calculate the percentage of total errors attributable to each specialist.
+
+Resultant columns:
+
+specialist_id (int): The unique ID of the specialist (certifications.entered_by).
+error_count: Total number of records entered by the specialist with Levenshtein distances between 1 and 3.
+error_percentage (varchar): The percentage of total errors caused by this specialist (calculated as (Error Count / Total Errors) * 100). It should be:
+Rounded to two decimal places for clarity and precision.
+Converted to a string (varchar) for better display and formatting in reports.
+The primary ordering criterion is error_count desc (highest errors first). And secondly, by specialist_id in the case of a tie.
+
+For this sample data:
+
+employees: 
+
+| id | name           |
++----+----------------+
+| 1  | John Smith     |
+| 2  | Jane Doe       |
+| 3  | Annabelle Lee  |
+certifications: 
+
+| id  | employee_id | cert_name     | entered_by | updated_at          |
++-----+-------------+---------------+------------+---------------------+
+| 101 | 1           | Jon Smith     | 1          | 2023-01-15 09:00:00 |
+| 102 | 1           | John Smit     | 2          | 2023-02-10 14:00:00 |
+| 103 | 2           | Jane Do       | 1          | 2023-01-20 08:00:00 |
+| 104 | 2           | Acme Corp.    | 3          | 2023-01-25 12:00:00 |
+| 105 | 3           | Annabel Lee   | 1          | 2023-03-01 10:00:00 |
+the expected output is the following:
+
+| specialist_id | error_count | error_percentage |
++---------------+-------------+------------------+
+| 1             | 3           | 75.00            |
+| 2             | 1           | 25.00            |
+
+
+with cte as (
+select crt.entered_by as specialist_id, count(*) as total,
+(select count(*) from certifications as crt2
+join employees as emp2
+on crt2.employee_id = emp2.id
+where crt.entered_by = crt2.entered_by and levenshtein(emp2.name, crt2.cert_name) between 1 and 3) as error_count
+from certifications as crt
+join employees as emp
+on crt.employee_id = emp.id
+group by crt.entered_by)
+
+select specialist_id, error_count, 
+to_char((error_count / (select sum(error_count) from cte) * 100), 'fm999.00') as error_percentage 
+from cte
+where error_count > 0
+order by 2 desc, 1
+
+
+#########################################################
+
+
+You are working as a database manager for a property management company. The company oversees various properties, each owned by different landlords. Your task is to create a monthly report that shows how much each landlord should be paid. This payment is calculated by summing up the total rent from all properties owned by a landlord and then subtracting the total cost of maintenance carried out on those properties for the month.
+
+Develop an SQL query that generates a monthly invoice for each landlord. The invoice should include the landlord's ID and name, total rent from all properties they own, total maintenance costs for those properties for a specific month (April, 2024), and the final amount payable to the landlord.
+
+We have landlord table:
+
+id (integer, primary Key): Unique identifier for the landlord.
+name (varchar): Name of the landlord.
+email (varchar): Email address of the landlord.
+property table:
+
+id (integer, primary Key): Unique identifier for the property.
+address (varchar): Physical address of the property.
+rent (integer): Monthly rent price for the property.
+landlord_id (integer, Foreign Key to landlord table): ID of the landlord who owns the property.
+and maintenance table:
+
+id (integer, primary Key): Unique identifier for the maintenance record.
+details (varchar): Description of the maintenance work.
+cost (integer): Cost of the maintenance work.
+maintenance_date (date): Date when the maintenance was carried out.
+property_id (integer, foreign key to property table): ID of the property where the maintenance was performed.
+The query should output a table with columns:
+
+landlord_id (integer): ID of the landlord.
+name (varchar): Name of the landlord.
+total_rent (integer): Total rent collected from all properties owned by the landlord.
+total_cost (integer): Total maintenance cost for those properties for the April, 2024.
+amount_payable (integer): The total rent minus the total maintenance cost.
+The final output should be ordered first by the total_rent in descending order, showcasing those landlords due the most at the top, and then by landlord_id in descending order for easy reference.
+
+For this sample data:
+
+landlord:
+
+id  |    name    |       email       
+----|------------|-------------------
+ 1  | J Johnson  | jj@example.com    
+ 2  | R Kelly    | rk@example.com    
+property:
+
+id |  address   | rent | landlord_id 
+---|------------|------|-------------
+1  | 123 Street | 400  |      1      
+2  | 456 Avenue | 600  |      1      
+3  | 789 Blvd   | 750  |      2     
+maintenance: 
+
+id  |   details      | cost | maintenance_date | property_id 
+----|----------------|------|------------------|------------
+1   | Fixing pipes   |  25  | 2024-04-05       |      1      
+2   | Painting walls | 120  | 2024-04-10       |      2      
+3   | Window replace |  35  | 2024-04-15       |      3      
+The desired output is the following:
+
+landlord_id	name	total_rent	total_cost	amount_payable
+1	J Johnson	1000	145	855
+2	R Kelly	750	35	715
+
+
+with cte as (
+select 
+lnd.id as landlord_id,
+lnd.name,
+(select coalesce(sum(prt2.rent), 0)
+ from property as prt2
+ full join landlord as lnd2
+ on prt2.landlord_id = lnd2.id
+ where lnd2.id = lnd.id
+) as total_rent,
+(select coalesce(sum(mnt2.cost), 0)
+ from property as prt2
+ full join landlord as lnd2
+ on prt2.landlord_id = lnd2.id
+ full join maintenance as mnt2
+ on mnt2.property_id = prt2.id
+ where lnd2.id = lnd.id and date_part('year', mnt2.maintenance_date) = 2024 and date_part('month', mnt2.maintenance_date) = 4
+) as total_cost
+from landlord as lnd
+group by lnd.id
+order by 3 desc, 1 desc)
+
+select landlord_id, name, total_rent, total_cost, total_rent - total_cost as amount_payable
+from cte
+
+##############################################
+
+The city launched a Green Energy Rebate Program to encourage households to install solar panels. Each household is eligible for one rebate only, determined by a unique combination of house_no and street_name.
+
+However, due to a bad UI on the government website, several applicants submitted duplicate applications from the same address—often believing theirs was the only one.
+
+As part of the Municipal Audit, your task is to detect all duplicate addresses, and for each one, return a single summary line flagging the issue.
+
+energy_rebate_applications:
+
+id (intger): primary key
+applicant_id (integer, unique): Unique ID for the application form
+house_no (integer): Civic number
+street_name (varchar): Street
+Your query must return:
+
+A single column named audit_note with one row per duplicated address, formatted like:
+
+{N} applications (applicant_ids: ID1, ID2, ...) already filed at {house_no} {street_name}
+
+Important: The applicant_ids inside each note must be listed in ascending order.
+
+Notes:
+Sort the final result by:
+Number of applications (desc)
+Street name (asc)
+House number (asc)
+For this sample data:
+
+| applicant_id  | house_no | street_name      |
++---------------+----------+------------------+
+| 1021          | 6        | Mc Gill Crst     |
+| 1097          | 6        | Mc Gill Crst     |
+| 1300          | 195      | Mc Gill Crst     |
+| 1402          | 195      | Mc Gill Crst     |
+| 101           | 12       | Elm St           |
+| 107           | 12       | Elm St           |
+| 112           | 12       | Elm St           |
+| 4000          | 22       | Baker Street     |
+Expected output is the followng:
+
+| audit_note                                                                   |
++------------------------------------------------------------------------------+
+| 3 applications (applicant_ids: 101, 107, 112) already filed at 12 Elm St     |
+| 2 applications (applicant_ids: 1021, 1097) already filed at 6 Mc Gill Crst   |
+| 2 applications (applicant_ids: 1300, 1402) already filed at 195 Mc Gill Crst |
+
+
+select 
+count(*) || 
+' applications (applicant_ids: ' || 
+array_to_string(array_agg(applicant_id order by applicant_id), ', ') || 
+') already filed at ' || 
+house_no || 
+' ' || 
+street_name as audit_note
+from energy_rebate_applications
+group by (house_no, street_name)
+having count(*) > 1
+order by count(*) desc, street_name, house_no
+
+
+#######################################################
+
+
+Write a SQL query using the DVD rental database to find the top 50 customers who rented movies on Friday between 6 pm and midnight (i.e. 18:00 to 23:59). For each customer, the query should return their id, full name, the total number of rentals they made on a Friday evening, and a comma-separated list of the dates (including the time) of those rentals, sorted in descending order.
+
+Notes:
+for the sample tests, static dump of DVD Rental Sample Database is used, for the final solution - random tests.
+by "top customers" is meant that list should be sorted by the quantity of rentals from higher to lower and if number of rentals is the same - then by last name of a customer
+Good luck!
+
+Schema
+(not all columns - part of the domain required to solve this kata)
+
+customer table:
+Column       | Type     | Modifiers
+------------ +----------+----------
+customer_id  | integer  | not null
+first_name   | varchar  | not null
+last_name    | varchar  | not null
+rental table:
+Column       | Type      | Modifiers
+-------------+-----------+----------
+rental_id    | integer   | not null
+customer_id  | integer   | not null
+rental_date  | timestamp | not null
+return_date  | timestamp | 
+
+
+select 
+customer_id,
+cst.first_name || ' ' || cst.last_name as customer_name,
+count(*) as friday_rentals,
+array_to_string(array_agg(rental_date order by rental_date desc), ', ') as rental_dates
+from rental
+join customer as cst using (customer_id)
+where extract(dow from rental_date::date) = 5 and
+cast(rental_date as time) >= '18:00:00'::time
+group by customer_id, cst.first_name, cst.last_name
+order by 3 desc, cst.last_name
+limit 50
+
+########################################################
+
+Write a PostgreSQL query that selects film_id, the title and special_features columns from the film table in the DVD rental database, and returns all films that have the most popular feature as one of their features. By "most popular" is meant that it appears most frequently among all the special features amidst all films of film table
+
+Notes:
+for the sample tests, static dump of DVD Rental Sample Database is used, for the final solution - random tests.
+The result should be ordered by title alphabetically, if title is the same - then by film_id in asc order.
+let's assume that there are no ties for the most frequent special feature
+in special_features there are no duplicates - all values are unique
+
+Schema:
+film table:
+Column            | Type      | Modifiers
+------------------+-----------+-----------
+film_id           | integer   | not null
+title             | varchar   | not null
+description       | text      | not null
+release_year      | integer   | not null
+language_id       | integer   | not null 
+rental_duration   | integer   | not null
+rental_rate       | numeric   | not null
+length            | integer   | not null
+replacement_cost  | numeric   | not null
+rating            | varchar   | not null
+last_update       | timestamp | not null
+special_features  | text[]    | not null
+Desired Output
+The desired output should look like this:
+
+film_id | title                             | special_features                       |
+--------+-----------------------------------+----------------------------------------|
+   32   | A Shawshank Redemption            | {Trailers, Deleted Scenes}             | 
+   14   | Monty Python and the Holy Grail   | {Trailers, Deleted Scenes}             |
+
+with cte as(
+select fm2.sf as sf
+from (select unnest(fm.special_features) as sf from film as fm) as fm2
+group by fm2.sf
+order by count(*) desc
+limit 1)
+
+select film_id, title, special_features
+from film
+where (select sf from cte) like any (special_features)
+order by 2, 1
+
+###########################################################
+
 The query result should be ordered by category_name in ascending order, and then by percentage in descending orders. If there are tied percentages for a given category, the results should be ordered by film rating in alphabetical order.
 
 Notes:
