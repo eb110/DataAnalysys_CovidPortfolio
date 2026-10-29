@@ -1,4 +1,753 @@
-We have calls table:
+In this task you need to analyze the popularity of action movies by day of the week. Your goal is to determine which day of the week is the most popular for renting movies from "Action" category. In the resultant query you need to return film_id, film_title, and most_popular_day_of_week where most_popular_day_of_week is one of the following 3-letter abbreviations: MON, TUE, WED, THU, FRI, SAT, SUN. Result should be sorted by film title alphabetically, and if film title is the same - then by film_id in asc order.
+
+Notes:
+for the sample tests, static dump of DVD Rental Sample Database is used, for the final solution - random tests.
+"most popular" = the most amount of rentals happened on that day of week for the film. If there is a tie, then simply return the day of week that appears first in alphabetical order.
+lets assume that every film has non zero amount of rentals
+as a hint, it can be done without using window functions
+Schema
+(not all columns - part of the domain required to solve this kata)
+
+film table:
+Column           | Type     | Modifiers
+-----------------+----------+----------
+film_id          | integer  | not null
+title            | varchar  | not null
+film_category table:
+Column      | Type      | Modifiers
+------------+---------- +----------
+film_id     | smallint  | not null
+category_id | smallint  | not null
+category table:
+Column      | Type      | Modifiers
+------------+-----------+----------
+category_id | smallint  | not null
+name        | text      | not null
+rental table:
+Column       | Type      | Modifiers
+-------------+-----------+----------
+rental_id    | integer   | not null
+inventory_id | integer   | not null
+rental_date  | timestamp | not null
+return_date  | timestamp | 
+inventory table:
+Column       | Type      | Modifiers
+------------ +-----------+----------
+inventory_id | integer   | not null
+film_id      | smallint  | not null
+Desired Output
+The desired output should look like this:
+
+film_id | film_title             | most_popular_day_of_week |
+--------+------------------------+--------------------------|
+   324  | Django Unchained       | MON                      | 
+   14   | 12 Years a Slave       | SAT                      |
+
+with cte as (
+select fm.film_id, fm.title as film_title, 
+case
+  when extract(dow from rn.rental_date::date)::int = 0 then 'SUN'
+    when extract(dow from rn.rental_date::date)::int = 1 then 'MON'
+      when extract(dow from rn.rental_date::date)::int = 2 then 'TUE'
+        when extract(dow from rn.rental_date::date)::int = 3 then 'WED'
+          when extract(dow from rn.rental_date::date)::int = 4 then 'THU'
+            when extract(dow from rn.rental_date::date)::int = 5 then 'FRI'
+  else 'SAT'
+end as most_popular_day_of_week,
+count(*) as dodo
+from rental as rn
+join inventory as inv using (inventory_id)
+join film as fm on inv.film_id = fm.film_id
+join film_category as fc on fm.film_id = fc.film_id
+join category as ct on fc.category_id = ct.category_id
+where ct.name = 'Action'
+group by fm.film_id, fm.title, extract(dow from rn.rental_date::date)
+order by 1, 4 desc, 3),
+cte2 as (
+select row_number() over(partition by film_id) as rank, * from cte)
+
+select film_id,film_title,most_popular_day_of_week  from cte2
+where rank = 1
+order by 2
+
+
+###########################################################
+
+
+You have been provided with a PostgreSQL database that contains an employees table. The employees table has the following structure:
+
+id: an integer column that uniquely identifies each employee.
+name: a text column that contains the name of the employee.
+birthdate: a date column that contains the birth date of the employee
+manager_id: an integer column that identifies the manager of each employee. The manager_id corresponds to an id in the same employees table. This means that our table has a recursive relationship with itself - an employee can be a manager to other employees. It is nullable: top managers do not have managers above them.
+Your manager comes up with an interesting task for you. They want to identify managers who have two or more direct subordinates aged 60 or older. These managers have experience managing seasoned professionals. The purpose of this task is to plan a special recognition event for these managers and their subordinates.
+
+The query should return each qualifying manager's id, name, and the count of their direct subordinates who are 60 years or older (older_subordinate_count).
+
+The results should be ordered by the count of older subordinates in descending order. In case of a tie, managers should be ordered by their id in descending order.
+
+GLHF!
+
+Desired Output
+The desired output should look like this:
+
+id	name	older_subordinate_count
+1	Sana Kessler	3
+20	Carroll Larson PhD	2
+3	Dorene Hickle Jr.	2
+
+
+with cte as (
+select e1.id, e1.name, 
+(select count(*) from employees as e2 where e2.manager_id = e1.id 
+ and date_part('year',age(current_date::date,e2.birthdate::date)) > 59
+) as older_subordinate_count
+from employees as e1)
+
+select * from cte
+where older_subordinate_count > 1
+order by 3 desc, 1 desc
+
+####################################
+
+
+You work for a DVD rental store that wants to understand which movie genres are the most popular among customers who have rented at least one movie during multiple months. By analyzing rental data over a longer period of time, the store owner hopes to gain insights into most active customer's preferences and identify trends that can inform their business decisions as well as which genres may be experiencing a surge or decline in popularity.
+
+Your task is to write a SQL query to identify the top five most popular movie genres among customers who have rented at least one movie during the months of May, June, and July of 2005 (in each of these 3 months), regardless of whether they rented movies in other months.
+
+Notes:
+for the sample tests, static dump of DVD Rental Sample Database is used, for the final solution - random tests.
+by popularity is meant the quantity of rentals by the eligible customers, regardless of the period in which the rental was made
+by genre- category.name from category table
+List should be sorted by the quantaty of rentals from higher to lower and if number of rentals is the same - then by title of category alphabetically
+Good luck!
+
+Schema
+customer table:
+Column       | Type     | Modifiers
+------------ +----------+----------
+customer_id  | integer  | not null
+first_name   | varchar  | not null
+last_name    | varchar  | not null
+film table:
+Column           | Type     | Modifiers
+-----------------+----------+----------
+film_id          | integer  | not null
+title            | varchar  | not null
+description      | text     | not null
+rating           | varchar  | not null
+film_category table:
+Column      | Type      | Modifiers
+------------+---------- +----------
+film_id     | smallint  | not null
+category_id | smallint  | not null
+category table:
+Column      | Type      | Modifiers
+------------+-----------+----------
+category_id | smallint  | not null
+name        | text      | not null
+rental table:
+Column       | Type      | Modifiers
+-------------+-----------+----------
+rental_id    | integer   | not null
+customer_id  | integer   | not null
+inventory_id | integer   | not null
+rental_date  | timestamp | not null
+return_date  | timestamp | 
+inventory table:
+Column       | Type      | Modifiers
+------------ +-----------+----------
+inventory_id | integer   | not null
+film_id      | smallint  | not null
+store_id     | smallint  | not null
+Desired Output
+The desired output should look like this:
+
+  genre   |  total_rentals |
+----------+----------------|
+  Action  |  1035          | 
+  Sci-Fi  |  1004          |
+
+
+with cte as (
+select rn.customer_id 
+from rental as rn 
+group by rn.customer_id
+  having  count(rn.rental_date) filter(where rn.rental_date::date between '2005-05-01' and '2005-05-31') > 0 
+ and count(rn.rental_date) filter(where rn.rental_date::date between '2005-06-01' and '2005-06-30') > 0 
+  and count(rn.rental_date) filter(where rn.rental_date::date between '2005-07-01' and '2005-07-31') > 0)
+
+select ct.name as genre, count(rn.customer_id) as total_rentals
+from rental as rn
+join inventory as inv using (inventory_id)
+join film_category as fc
+on fc.film_id = inv.film_id
+join category as ct
+on ct.category_id = fc.category_id
+where rn.customer_id in (select * from cte)
+group by ct.name
+order by 2 desc
+limit 5
+
+#####################################################
+
+You are provided with two PostgreSQL tables: rebates and orders. The rebates table contains information about the percentage of rebate given to customers based on their total purchase amount. The orders table stores data about customer orders, including the order amount and the date the order was placed.
+
+rebates:
+
+id (integer) - Unique identifier for the rebate entry.
+rebate_percentage (float) - The percentage of rebate that applies.
+min_purchase (integer) - The minimum total purchase amount to qualify for the given rebate.
+orders:
+
+id (integer) - Unique identifier for the order.
+customer_id (integer) - Identifier for the customer who placed the order.
+order_amount (integer) - The amount of the order.
+order_date (date) - The date the order was placed.
+Your task is to write an SQL query that calculates the total amount of orders for each customer for September 2023 and determines the corresponding rebate percentage they are eligible for based on their total orders.
+
+Objectives:
+
+Calculate the sum of order amounts for each customer for orders placed in September 2023 (Assuming that the orders table contains various orders with order_date spanning different months and years, and order_amount varying between orders).
+Determine the appropriate rebate percentage for each customer based on the calculated total order amount.
+Exclude customers who do not have orders in September 2023 or whose total orders in September 2023 are below the lowest min_purchase in the rebates table.
+A result set should contain the following columns:
+
+customer_id (integer) - The ID of the customer.
+total_orders (integer) - The total sum of the orders made by the customer in September 2023.
+rebate_percentage (float) - The rebate percentage applicable to the customer based on their total orders in September 2023.
+and be sorted by customer_id in descending order.
+
+
+select ord.customer_id, sum(ord.order_amount) as total_orders,
+(select rebate_percentage from rebates where sum(ord.order_amount) >= min_purchase
+order by rebates desc limit 1) as rebate_percentage
+from orders as ord
+where date_part('year', ord.order_date) = '2023' and date_part('month', ord.order_date) = '9'
+group by ord.customer_id
+having sum(ord.order_amount) >= (select min(min_purchase) from rebates)
+order by 1 desc
+
+
+############################################################
+
+
+Your task is to write a query that retrieves the total revenue for each film category for each month of the year 2007, as well as the overall total revenue for each month (which is being displayed prior to data for each category). The results should be ordered by month (in asc order) and revenue in descending order. Additionally, the query should display the total revenue for the year 2007 as the last row of the result set.
+
+To group the data and calculate the revenue totals, you can use the GROUP BY clause with the GROUPING SETS feature of PostgreSQL. This will allow you to group the data by different combinations of columns, including the year only, the year and month, and the year, month, and category.
+
+Your query should produce a table with the following columns:
+
+year: the year of the payment date
+month: the month of the payment date - integer from 1 to 12
+category: the name of the film category
+revenue: the total revenue for the given combination of year, month, and category, or for the given year and month, or for a whole year
+Notes:
+for the sample tests, static dump of DVD Rental Sample Database is used, for the final solution - random tests.
+by revenue is simply meant sum of amount from payment table
+revenue should be rounded down to the previous whole number.
+if revenue for some categories is the same, then order by category name alphabeitcally
+Schema
+(not all columns - only part of the domain required to solve this kata)
+
+payment table:
+   Column     |  Type     | Modifiers
+--------------+-----------+-----------
+ payment_id   | integer   | not null
+ rental_id    | integer   | not null
+ amount       | numeric   | not null
+ payment_date | timestamp | not null
+film_category table:
+Column      | Type      | Modifiers
+------------+---------- +----------
+film_id     | smallint  | not null
+category_id | smallint  | not null
+category table:
+Column      | Type      | Modifiers
+------------+-----------+----------
+category_id | smallint  | not null
+name        | text      | not null
+rental table:
+Column       | Type      | Modifiers
+-------------+-----------+----------
+rental_id    | integer   | not null
+inventory_id | integer   | not null
+inventory table:
+Column       | Type      | Modifiers
+------------ +-----------+----------
+inventory_id | integer   | not null
+film_id      | smallint  | not null
+Desired Output
+The desired output should look like this:
+
+Year    | month | category   | revenue    |
+--------+--------------------+------------|
+ 2007   | 2      | <null>     | 9008      |   
+ 2007   | 2      | Music      | 1023      |
+ 2007   | 2      | Sci-Fi     | 814       |
+...
+ 2007   | 3      | <null>     | 8351      |   
+ 2007   | 3      | Action     | 628       |
+ 2007   | 3      | Sports     | 607       |
+...
+ 2007   | <null> | <null>     | 38005     |
+
+
+select date_part('year', pm.payment_date::date)::int as Year, 
+date_part('month', pm.payment_date::date)::int as month, 
+ct.name as category, floor(sum(pm.amount))::int as revenue
+from payment as pm
+join rental as rn using(rental_id)
+join inventory as iv on rn.inventory_id = iv.inventory_id
+join film_category fc on iv.film_id = fc.film_id
+join category ct on fc.category_id = ct.category_id
+where date_part('year', pm.payment_date::date) = '2007'
+group by grouping sets (
+(date_part('year', pm.payment_date::date), date_part('month', pm.payment_date::date), ct.name), 
+(date_part('year', pm.payment_date::date), date_part('month', pm.payment_date::date)),
+(date_part('year', pm.payment_date::date)))
+order by 2, 4 desc, 3
+
+#####################################################
+
+
+A home maintenance company uses a database to keep track of tasks that need to be performed at various houses. The database has two tables: house_tasks and task_status. The house_tasks table contains a list of tasks scheduled for each house identified by a house_id. The task_status table tracks the progress of each task, including a description and its current status.
+
+house_tasks:
+
+task_id (int, primary key): A unique identifier for each task.
+house_id (int): The identifier of the house for which the task is scheduled.
+task_name (varchar): The name of the task to be performed.
+task_status:
+
+id (int, primary key): A unique identifier for each task status record.
+task_id (int): The identifier of the task which this status relates to.
+description (varchar): A brief description of the task status.
+task_status (varchar): The current status of the task; it can be 'Completed', 'In Progress', or NULL if the status has not been set.
+Write a SQL query that generates a report for each house. The report should include the following columns:
+
+house_id: The identifier of the house.
+total_tasks: The total number of tasks scheduled for the house.
+completed_tasks: The number of tasks that have been completed. A task is considered completed if all of its corresponding statuses in the task_status table are set to 'Completed'.
+incomplete_tasks: The number of tasks that are not completed. A task is considered incomplete if any of its statuses are not 'Completed' or if the task does not have any status record in the task_status table.
+The result should be ordered by house_id in descending order.
+
+For this sample data:
+
+house_tasks:
+
+| task_id | house_id | task_name |
++---------+----------+-----------+
+| 1       | 1        | Paint     |
+| 2       | 1        | Plumb     |
+| 3       | 1        | Garden    |
+| 4       | 2        | Electric  |
+| 5       | 2        | Roof      |
+| 6       | 3        | Cleanup   |
+| 7       | 4        | Extra Work|
+task_status:
+
+| task_id | description | task_status |
++---------+-------------+-------------+
+| 1       | Desc 1      | Completed   |
+| 1       | Desc 2      | Completed   |
+| 1       | Desc 3      | Completed   |
+| 2       | Desc 4      | In Progress |
+| 2       | Desc 5      | In Progress |
+| 3       | Desc 6      | In Progress |
+| 3       | Desc 7      | Completed   |
+| 4       | Desc 8      | Completed   |
+| 5       | Desc 9      | NULL        |
+| 7       | Desc 10     | NULL        |
+| 7       | Desc 11     | Completed   |
+desired output is the following:
+
+| house_id | total_tasks | completed_tasks | incomplete_tasks |
++----------+-------------+-----------------+------------------+
+| 4        | 1           | 0               | 1                |
+| 3        | 1           | 0               | 1                |
+| 2        | 2           | 1               | 1                |
+| 1        | 3           | 1               | 2                |
+
+with cte as(
+select house_id, task_id, 
+count(house_id) filter (where coalesce(task_status, 'null') <> 'Completed') as status
+from house_tasks
+left join task_status using (task_id)
+group by house_id, task_id)
+
+select house_id, count(*) as total_tasks,
+count(status) filter(where status = 0) as completed_tasks,
+count(status) filter(where status <> 0) as incomplete_tasks
+from cte
+group by house_id
+order by 1 desc
+
+##############################################
+
+Imagine a system where users are classified into one of two classes - 'a' or 'b'. A single user may belong to one class, or they may belong to both. Also, a unique aspect of this system is that a user may have multiple records of belonging to the same class, or they may belong to both classes multiple times.
+
+Your task is to write a query that accurately counts the number of users in each class, with a special rule: If a user belongs to both classes, they should only be counted under class 'b'.
+
+users table has the following schema:
+
+id (integer): A unique identifier for each record.
+user_id (integer): An identifier for each user. Note that the same user ID may appear multiple times if a user belongs to multiple classes.
+class (char): The class a user belongs to. It can only be either 'a' or 'b'.
+Your resulting output will include the following columns:
+
+class (char): The class identifier. In this assignment, it can only be 'a' or 'b'.
+count (integer): The number of unique users belonging to each class, considering the special rule that a user belonging to both 'a' and 'b' should only be counted under class 'b'.
+So thus such dataset:
+
+id | user_id | class |
+---|---------|-------|
+1  | 1       | a     |
+2  | 1       | b     |
+3  | 1       | b     |
+4  | 2       | b     |
+5  | 3       | a     |
+will provide the following result:
+
+| class | count |
+|-------|-------|
+| a     | 1     |
+| b     | 2     |
+
+
+with cta as (
+select regexp_replace(array_to_string(array_agg(distinct class), ''), 'ab', 'b') as class
+from users
+group by user_id)
+
+select *, count(*)
+from cta
+group by class
+order by 1
+
+######################################
+
+
+Create and analyze a contingency table using SQL to understand the relationship between two categorical variables: sex (male or female) and handedness (right-handed or left-handed).
+
+We have survey_data table with the following columns:
+
+id (int): primary key
+sex (varchar): A string indicating the sex of the individual (either 'Male' or 'Female').
+handedness (varchar): A string indicating whether the individual is 'Right-handed' or 'Left-handed'.
+Write a SQL query to create a contingency table that shows the number of right-handed and left-handed individuals, broken down by sex.
+
+The final output should include:
+
+Columns: "Sex/Handedness", "Right-handed", "Left-handed", "Total".
+Rows for 'Male', 'Female', and a 'Total' row summing up each column.
+We also need to implement custom ordering in the output: first 'Male', then 'Female', followed by 'Total'.
+
+Desired Output
+The desired output should look like this:
+
+Sex/Handedness	Right-handed	Left-handed	Total
+Male	43	9	52
+Female	44	4	48
+Total	87	13	100
+
+with cte as (
+select case when sex = 'Male' then 1 else 2 end as "Rank",
+sex as "Sex/Handedness", 
+count(case when handedness = 'Right-handed' then 1 end) as "Right-handed",
+count(case when handedness <> 'Right-handed' then 1 end) as "Left-handed",
+count(*) as "Total"
+from survey_data
+group by sex
+union
+select 3,'Total',count(case when handedness = 'Right-handed' then 1 end),
+count(case when handedness <> 'Right-handed' then 1 end),count(*)
+from survey_data)
+
+select "Sex/Handedness", "Right-handed", "Left-handed", "Total" from cte
+order by "Rank"
+
+##############################################
+
+Given a PostgreSQL table user_tags with the following schema:
+
+user_id (integer) - Unique identifier for the user.
+tags (string) - Comma-separated string of tags associated with the user.
+You are tasked to write a PostgreSQL query that selects all unique tags, counts the number of occurrences for each tag (tag_count), and assigns a rank to each tag based on the number of occurrences (tag_rank). The tags with the highest number of occurrences should have the lowest rank. If two or more tags have the same number of occurrences, they should be ranked in alphabetical order. In other words, among tags that have the same tag_count value, the one that comes first in alphabetical order will receive the lower rank (higher position).
+
+For example, consider the following sample data:
+
+user_id | tags
+--------+------------
+1       | word1,word2,word3
+2       | word2,word4
+3       | word3,word5,word6,word7
+The desired output for this sample data is:
+
+tag_rank | tag   | tag_count
+---------+-------+---------
+1        | word2 | 2
+2        | word3 | 2
+3        | word1 | 1
+4        | word4 | 1
+5        | word5 | 1
+6        | word6 | 1
+7        | word7 | 1
+
+with cta as (
+select unnest(string_to_array(tags, ',')) as tag, count(*) as tag_count
+from user_tags
+group by tag
+order by tag_count desc, tag)
+
+select row_number() over() as tag_rank, * from cta
+
+
+###########################################
+
+
+You are working with a database that tracks user engagement in an online platform. Users can link their profiles to GitHub accounts to showcase their coding portfolios.
+
+We have users table:
+
+id (int, primary key): Unique identifier for the user.
+username (varchar): The user's username.
+likes_count (int): Total number of likes received by the user.
+comments_count (int): Total number of comments received by the user.
+shares_count (int): Total number of shares received by the user.
+date_joined (date): The date the user joined the platform.
+and github_accounts table:
+
+id (int, primary key): Unique identifier for the GitHub account.
+user_id (int, foreign key on users table): The user ID this GitHub account is linked to.
+github_handle (varchar): the GitHub handle or username.
+Write a query to generate the top 10 most engaged users. Calculate their engagement points using this formula:
+
+engagement_points = likes_count * 1  + comments_count * 2 + shares_count * 3
+
+If a user has a linked GitHub account, they receive a bonus of 50 points to their engagement score. Include this bonus when calculating engagement points.
+
+Ranking Logic:
+
+Users are ranked by their engagement points in descending order.
+If two users have the same engagement points, the one who joined earlier ranks higher.
+If both engagement points and join dates are the same, the user whose username comes first alphabetically ranks higher.
+Your query should include the following columns:
+
+rank (int)
+username (varchar).
+engagement_points (int): including the GitHub bonus, if applicable
+date_joined (date).
+github_handle (varchar, nullable).
+For this sample data:
+
+users: 
+
+| id | username | likes_count | comments_count | shares_count | date_joined|
++----+----------+-------------+----------------+-------------+------------+
+| 1  | Alice    | 10          | 5              | 2           | 2023-01-01 |
+| 2  | Bob      | 8           | 10             | 5           | 2023-02-01 |
+| 3  | Charlie  | 15          | 3              | 8           | 2023-03-01 |
+| 4  | Diana    | 5           | 2              | 1           | 2023-04-01 |
+| 5  | Eve      | 20          | 7              | 3           | 2023-05-01 |
+| 6  | Frank    | 12          | 8              | 4           | 2023-06-01 |
+| 7  | Grace    | 7           | 3              | 6           | 2023-07-01 |
+| 8  | Heidi    | 9           | 4              | 2           | 2023-08-01 |
+| 9  | Ivan     | 6           | 3              | 1           | 2023-09-01 |
+| 10 | Judy     | 25          | 10             | 12          | 2023-10-01 |
+github_accounts:
+
+| id | user_id | github_handle    |
++----+---------+------------------+
+| 1  | 1       | alice_dev        |
+| 2  | 3       | charlie_coder    |
+| 3  | 5       | eve_tech         |
+| 4  | 7       | grace_code       |
+| 5  | 10      | judy_programmer  |
+the desired output is the following:
+
+| rank | username | engagement_points  | date_joined  | github_handle    |
++------+----------+--------------------+-------------+-------------------+
+| 1    | Judy     | 131                | 2023-10-01  | judy_programmer   |
+| 2    | Charlie  | 95                 | 2023-03-01  | charlie_coder     |
+| 3    | Eve      | 93                 | 2023-05-01  | eve_tech          |
+| 4    | Grace    | 81                 | 2023-07-01  | grace_code        |
+| 5    | Alice    | 76                 | 2023-01-01  | alice_dev         |
+| 6    | Bob      | 43                 | 2023-02-01  | NULL              |
+| 7    | Frank    | 40                 | 2023-06-01  | NULL              |
+| 8    | Heidi    | 23                 | 2023-08-01  | NULL              |
+| 9    | Ivan     | 15                 | 2023-09-01  | NULL              |
+| 10   | Diana    | 12                 | 2023-04-01  | NULL              |
+
+
+with cte as(
+select u.username, 
+u.likes_count + u.comments_count * 2 + u.shares_count * 3 + 
+(case when ga.user_id is null then 0 else 50 end) as engagement_points,
+u.date_joined, ga.github_handle
+from users as u
+left join github_accounts as ga on u.id = ga.user_id
+order by 2 desc)
+
+select row_number() over() as rank, *
+from cte
+limit 10
+
+
+#################################################
+
+You are a data analyst at a subscription-based e-learning platform. It allows users to book courses in advance, and the platform keeps track of both the booking date and the course start date. Management has tasked you with analyzing how many "active bookings" exist on each booking_date.
+
+Write an SQL query to calculate the number of active bookings for each booking_date in the system. The results should include all booking_date values from the course_bookings table, and the count of active bookings for each.
+
+course_bookings table:
+
+id (int, primary key): Unique identifier for the booking.
+course_id (int, foreign key) Identifier for the course.
+user_id (int): Identifier for the user who booked the course.
+course_start_date (date): The date when the course is scheduled to start.
+booking_date (date): The date when the user booked the course.
+An "active booking" is defined as a course booking that:
+
+Was booked on or before a given booking_date.
+Has a course_start_date that is on or after the booking_date, meaning it has not yet started.
+Resultant columns:
+
+booking_date: the date on which bookings were made
+active_bookings: the count of all active bookings
+The result is ordered by booking_date in ascending order.
+
+For this sample data:
+
+| id | course_id | user_id | course_start_date | booking_date |
++----+-----------+---------+-------------------+--------------+
+| 1  | 101       | 1       | 2025-01-01        | 2025-01-01   |
+| 2  | 102       | 2       | 2025-01-06        | 2025-01-01   |
+| 3  | 102       | 3       | 2025-01-06        | 2025-01-01   |
+| 4  | 103       | 4       | 2025-01-07        | 2025-01-02   |
+| 5  | 104       | 5       | 2025-01-08        | 2025-01-03   |
+| 6  | 105       | 6       | 2025-01-09        | 2025-01-04   |
+| 7  | 106       | 7       | 2025-01-10        | 2025-01-05   |
+| 8  | 106       | 8       | 2025-01-10        | 2025-01-05   |
+| 9  | 106       | 9       | 2025-01-10        | 2025-01-05   |
+| 10 | 106       | 10      | 2025-01-10        | 2025-01-05   |
+| 11 | 106       | 11      | 2025-01-10        | 2025-01-05   |
+| 12 | 107       | 12      | 2025-01-11        | 2025-01-05   |
+expected output is the following:
+
+| booking_date | active_bookings |
++--------------+-----------------+
+| 2025-01-01   | 3               |
+| 2025-01-02   | 3               |
+| 2025-01-03   | 4               |
+| 2025-01-04   | 5               |
+| 2025-01-05   | 11              |
+2025-01-01: 3 bookings are active (IDs: 1, 2, 3).
+2025-01-02: 3 bookings are active (IDs: 2, 3, 4) because ID 1 is no longer active (it started on 2025-01-01).
+2025-01-03: 4 bookings are active (IDs: 2, 3, 4, 5).
+2025-01-04: 5 bookings are active (IDs: 2, 3, 4, 5, 6).
+2025-01-05: 11 bookings are active (IDs: 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12).
+
+
+select cb1.booking_date, (select count(*) from course_bookings as cb2
+where cb2.booking_date <= cb1.booking_date and cb2.course_start_date >= cb1.booking_date) as active_bookings
+from course_bookings as cb1
+group by cb1.booking_date
+order by 1
+
+
+#################################################
+
+You are working with a database for a company that manages certifications for its customers. The company needs to identify customers who have certificates expiring within the next 14 days and do not have any other certificates that expire later. This information is crucial for sending timely reminders to customers for renewals.
+
+We have customers table:
+
+id (int): primary key.
+ssn (string): The social security number of the customer. Serves as a unique identifier.
+name (string): The name of the customer.
+and certs table:
+
+id (int): primary key.
+cert_num (string): The unique number of the certificate.
+ssn (string): The social security number of the customer to whom the certificate belongs. This is a foreign key referencing the Customers table.
+cert_start (date): The start date of the certificate's validity.
+cert_finish (date): The expiration date of the certificate.
+Construct an SQL query that selects the appropriate data from these tables. The query should:
+
+Identify certificates that are expiring within the next 14 days from the current_date.
+For each customer, the query should include every certificate that is expiring within the next 14 days. This means a single customer might have multiple certificates listed in the results if all of them are expiring within the 14-day window.
+Exclude customers who have any other certificates with expiration dates beyond this 14-day window.
+Order the results by the customer's name then by customer's SSN, and finally by certificate number - all in ascending order.
+Expected Result Columns:
+
+name: The name of the customer.
+ssn: The social security number of the customer.
+cert_num: The number of the certificate.
+cert_start: The start date of the certificate's validity.
+cert_finish: The expiration date of the certificate.
+
+
+with cte as (
+select cus.name, cus.ssn, cts.cert_num, cts.cert_start, cts.cert_finish,
+count(*) over (partition by cus.name) as c_count,
+(select count(*) from certs as cts2 join customers as cus2 using (ssn)
+where cus.name = cus2.name and cts2.cert_finish <= current_date + interval '14 days')
+from certs as cts
+join customers as cus using (ssn))
+             
+select name, ssn, cert_num, cert_start, cert_finish from cte
+where cte.cert_finish > current_date and c_count = count
+order by 1, 2, 3
+
+
+#####################################################
+
+
+Business sells only three unique products: "Product 1," "Product 2," and "Product 3."
+
+Write an SQL query to find customers who have ordered "Product 1" and "Product 2" but not "Product 3." Additionally, provide a summary of how many times they have ordered the first two products.
+
+Schema:
+
+customers:
+
+customer_id (integer) - primary key
+name (varchar) - Name of the customer.
+orders:
+
+order_id (integer) - primary key
+customer_id (integer) - Identifier for the customer who placed the order.
+product_name (varchar) - Name of the ordered product. It can only be one of the three values: "Product 1," "Product 2," or "Product 3."
+Write a query that returns the following columns:
+
+customer_id: The unique identifier of the customer.
+name: The name of the customer.
+product_summary: A string that describes how many times the customer has ordered "Product 1" and "Product 2," formatted as "Product 1: {N} times || Product 2: {N} times."
+The results should be ordered by customer_id in descending order.
+
+GLHF!
+
+Desired Output
+The desired output should look like this:
+
+customer_id	name	product_summary
+92	Jeri Auer	Product 1: 25 times || Product 2: 25 times
+83	Chang Sporer	Product 1: 8 times || Product 2: 8 times
+82	Regan Schimmel	Product 1: 15 times || Product 2: 15 times
+
+
+select cus.customer_id, cus.name,
+'Product 1: ' || count(case when ord.product_name = 'Product 1' then 1 end) || ' times' ||
+' || Product 2: ' || count(case when ord.product_name = 'Product 2' then 1 end) || ' times' as product_summary
+from customers as cus
+join orders as ord using (customer_id)
+group by cus.customer_id
+having every (ord.product_name <> 'Product 3') and
+count(case when ord.product_name = 'Product 1' then 1 end) > 0 and 
+count(case when ord.product_name = 'Product 2' then 1 end) > 0
+order by 1 desc
+
+#####################################
 
 call_id (int, primary key): Unique identifier for each call.
 timestamp (timestamp): The date and time the call was received.
